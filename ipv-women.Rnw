@@ -534,46 +534,14 @@ generate.input.data.for.kriging.f <- function(my.set, my.var, my.clean.dt, proje
 
 @
 
-<<setup.future>>=
-setup.future.f <- function(n = NA, type = NA){
-    ## n for number of workers.
-    ## type must be "multicore" or "multisession", and is ignored if the OS does not support multicore 
-    ## (in which case "multisession" is used).
-    ## when RAM is limited, "multisession" can be preferable, since the workers then start with an empty R session.
-
-    ## make sure foreach and future are loaded in the callers session
-    
-    if(is.na(n)){
-        ## use Slurm if available, fall back to system.
-        n.cores <- parallelly::availableCores(method = c("Slurm", "system"))
-    } else {
-        n.cores <- n
-    }
-    options(future.gc=TRUE)
-    if(parallelly::supportsMulticore()) {
-        options(mc.cores = n.cores)
-        if(is.na(type)){
-            my.log.f(paste(Sys.time(), "Setting up future using multicore and", n.cores, "cores."))
-            future::plan(future::multicore)            
-        } else {
-            stopifnot(type %in% c("multisession", "multicore"))
-            my.log.f(paste(Sys.time(), "Setting up future using multisession and", n.cores, "cores."))            
-            future::plan(type)
-        }
-    } else {
-        ## future::plan(future::multisession, gc=TRUE, workers=n.cores)
-        my.log.f(paste(Sys.time(), "Setting up future using multisession with", n.cores, "cores."))        
-        future::plan(future::multisession, workers=n.cores)
-    }
-    doFuture::registerDoFuture()
-    return(n.cores)
-}
-
-@ 
+Configure the system for parallel computing.
 
 <<start.future, cache = FALSE>>=
 library(doFuture); library(globallivingconditions); library(sf)
-setup.future.f()
+options(future.gc=TRUE, mc.cores = parallelly::availableCores(method = c("Slurm", "system")))
+future::plan(future::multicore)
+doFuture::registerDoFuture()
+
 @
 
 A function that process all adjacent countries simultaneously, and aligns and merges the results to a single raster.
@@ -673,8 +641,10 @@ my.palette.f <- grDevices::colorRampPalette(c("blue", "white", "red"))
 my.raster <- terra::clamp(unwrap(serializable.raster), lower=0, upper=1, values=TRUE)
 my.borders <- unwrap(serializable.border)
 terra::plot(my.raster, col = my.palette.f(101), range = c(0, 1), plg = list(at = seq(from = 0, to = 1, by = 0.1)), axes = TRUE, ylim = c(4, 38), xlim = c(60, 127))
-terra::contour(my.raster, add = TRUE, levels = c(0.25, 0.5, 0.75))
+## terra::contour(my.raster, add = TRUE, levels = c(0.25, 0.5, 0.75))
+## terra::contour(my.raster, add = TRUE, levels = c(0.25, 0.5, 0.75))
 plot(my.borders, add = TRUE, col = NA, border = "darkgreen", lwd = 2)
+
 ## add adjacent countries with no data in gray
 ## world$admin has names, but not proper names according to the iso.3166 standard,
 ## eg "Laos" instead of "Lao People's Democratic Republic"
