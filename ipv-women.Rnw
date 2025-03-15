@@ -625,32 +625,51 @@ serializable.border <- terra::wrap(results[[2]])
 
 Calculate sample size for Exposure in Asia
 
-<<n.stats>>=
-countries.codes.asia <- c("Andaman And Nicobar Islands", "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", "Chandigarh", "Chhattisgarh", "Goa", "Gujarat", "Haryana", "Himachal Pradesh", "Jammu And Kashmir", "Jharkhand", "Karnataka", "Kerala", "Lakshadweep", "Madhya Pradesh", "Maharashtra", "Manipur", "Meghalaya", "Mizoram", "Nagaland", "New Delhi", "Odisha", "Puducherry", "Punjab", "Rajasthan", "Sikkim", "Tamil Nadu", "Telangana", "Tripura", "Uttar Pradesh", "Uttarakhand", "West Bengal", "KHM", "PAK", "MMR", "NPL", "PHL", "BGD")
-n.persons.exposure.asia <- my.dt.clean[country %in% countries.codes.asia, length(which(is.na(viol01_wife) == FALSE)), ]
-n.local.areas.exposure.asia <- my.dt.clean[country %in% countries.codes.asia &
+<<n.stats, tidy = FALSE>>=
+countries.codes.asia <- c("Andaman And Nicobar Islands",
+   "Andhra Pradesh", "Arunachal Pradesh", "Assam",
+   "Bihar", "Chandigarh", "Chhattisgarh", "Goa", "Gujarat",
+   "Haryana", "Himachal Pradesh", "Jammu And Kashmir",
+   "Jharkhand", "Karnataka", "Kerala", "Lakshadweep",
+   "Madhya Pradesh", "Maharashtra", "Manipur", "Meghalaya",
+   "Mizoram", "Nagaland", "New Delhi", "Odisha", "Puducherry",
+   "Punjab", "Rajasthan", "Sikkim", "Tamil Nadu",
+   "Telangana", "Tripura", "Uttar Pradesh", "Uttarakhand",
+   "West Bengal", "KHM", "PAK", "MMR", "NPL", "PHL", "BGD")
+n.persons.exposure.asia <- my.dt.clean[country %in%
+  countries.codes.asia, length(which(is.na(viol01_wife)
+  == FALSE)), ]
+n.local.areas.exposure.asia <- my.dt.clean[country %in%
+  countries.codes.asia &
   is.na(viol01_wife) == FALSE, length(unique(cluster1)), ]
-n.surveys.exposure.asia <- length(unique(sapply(strsplit(as.character(my.dt.clean$cluster1), ".", fixed = TRUE), function(x) { paste(x[c(1, 3)], collapse = ".") })))
+n.surveys.exposure.asia <- length(unique(sapply(strsplit(as.character(
+    my.dt.clean$cluster1), ".", fixed = TRUE), function(x) {
+        paste(x[c(1, 3)], collapse = ".") })))
 
 @ 
 
 Plot exposure to IPV in Asia.
 
-<<asia-IPV-exposure, fig.cap = paste0("Estimated proportion of women in the local area who have been exposed to violence by their current husband, Asia. Pakistan, India, Nepal, Myanmar, Cambodia and Philippines. Black contour lines at 0.25, 0.5 and 0.75. Country borders in darkgreen, and countries without data in gray. Number of women = ", n.persons.exposure.asia, ", number of local areas = ", n.local.areas.exposure.asia, ". Results from my own analysis based on data compiled from ", n.surveys.exposure.asia, " surveys funded by the DHS."), dependson = "asia-IPV-exposure-calc", fig.width = 9, fig.height = 5>>=
+<<asia-IPV-exposure, fig.cap = paste0("Estimated proportion of women in the local area who have been exposed to violence by their current husband, Asia. Pakistan, India, Nepal, Myanmar, Cambodia and Philippines. Country borders in darkgreen, and countries without data in gray. Number of women = ", n.persons.exposure.asia, ", number of local areas = ", n.local.areas.exposure.asia, ". Kriging performed on data compiled from ", n.surveys.exposure.asia, " surveys funded by the DHS."), dependson = "asia-IPV-exposure-calc", fig.width = 9, fig.height = 5, fig.align = "center", tidy = FALSE>>=
 my.palette.f <- grDevices::colorRampPalette(c("blue", "white", "red"))
-my.raster <- terra::clamp(unwrap(serializable.raster), lower=0, upper=1, values=TRUE)
+my.raster <- terra::clamp(unwrap(serializable.raster),
+                          lower=0, upper=1, values=TRUE)
 my.borders <- unwrap(serializable.border)
-terra::plot(my.raster, col = my.palette.f(101), range = c(0, 1), plg = list(at = seq(from = 0, to = 1, by = 0.1)), axes = TRUE, ylim = c(4, 38), xlim = c(60, 127))
+terra::plot(my.raster, col = my.palette.f(101), range = c(0, 1),
+            plg = list(at = seq(from = 0, to = 1, by = 0.1)),
+            axes = TRUE, ylim = c(4, 38), xlim = c(60, 127))
 ## terra::contour(my.raster, add = TRUE, levels = c(0.25, 0.5, 0.75))
 plot(my.borders, add = TRUE, col = NA, border = "darkgreen", lwd = 2)
 
 ## add adjacent countries with no data in gray
-## world$admin has names, but not proper names according to the iso.3166 standard,
+## world$admin has names, but not proper names according to iso.3166
 ## eg "Laos" instead of "Lao People's Democratic Republic"
 ## Therefore, use the numeric code in world$iso_n3_eh instead
-add.gray.countries <- c("Bangladesh", "Viet Nam", "Lao People's Democratic Republic", "Thailand")
+add.gray.countries <- c("Bangladesh", "Viet Nam",
+                        "Lao People's Democratic Republic", "Thailand")
 world <- rnaturalearth::ne_countries(scale = 50, returnclass = "sv")
-gray.countries <- world[as.numeric(world$iso_n3_eh) %in% iso.3166$numeric[match(add.gray.countries, iso.3166$String)], ]
+gray.countries <- world[as.numeric(world$iso_n3_eh) %in%
+        iso.3166$numeric[match(add.gray.countries, iso.3166$String)], ]
 plot(gray.countries, col = "gray80", add = TRUE, border = "darkgreen", lwd = 0.5)
 
 @
@@ -677,7 +696,7 @@ serializable.border <- terra::wrap(results[[2]])
 
 @
 
-<<asia-IPV-attitudes-plot, fig.cap = paste0("Estimated proportion of women in the local area who think IPV can be justified, Asia. Pakistan, India, Nepal, Myanmar, Cambodia and Philippines. Black contour lines at 0.25, 0.5 and 0.75. Country borders in darkgreen, and countries without data in gray. Number of women = ", n.persons.attitudes.asia, ", number of local areas = ", n.local.areas.attitudes.asia, ". Results from my own analysis based on data compiled from ", n.surveys.attitudes.asia, " surveys funded by the DHS."), fig.width = 9, fig.height = 5>>=
+<<asia-IPV-attitudes-plot, fig.cap = paste0("Estimated proportion of women in the local area who think IPV can be justified, Asia. Pakistan, India, Nepal, Myanmar, Cambodia and Philippines. Country borders in darkgreen, and countries without data in gray. Number of women = ", n.persons.attitudes.asia, ", number of local areas = ", n.local.areas.attitudes.asia, ". Kriging performed on data compiled from ", n.surveys.attitudes.asia, " surveys funded by the DHS."), fig.width = 9, fig.height = 5>>=
 my.raster <- terra::clamp(unwrap(serializable.raster), lower=0, upper=1, values=TRUE)
 my.borders <- unwrap(serializable.border)
 terra::plot(my.raster, col = my.palette.f(101), range = c(0, 1), plg = list(at = seq(from = 0, to = 1, by = 0.1)), axes = TRUE, ylim = c(4, 38), xlim = c(60, 127))
@@ -704,12 +723,39 @@ serializable.border <- terra::wrap(results[[2]])
 
 @
 
-<<africa-IPV-attitudes-plot, fig.cap = "Proportion women in the local area who thinks IPV can be justified, Africa. Contourlines in black at 0.25, 0.5 and 0.75.", fig.width = 5, fig.height = 9>>=
-my.raster <- terra::clamp(unwrap(serializable.raster), lower=0, upper=1, values=TRUE)
-my.borders <- unwrap(serializable.border)
-terra::plot(my.raster, col = my.palette.f(101), range = c(0, 1), plg = list(at = seq(from = 0, to = 1, by = 0.1)), axes = TRUE)
-## terra::contour(my.raster, add = TRUE, levels = c(0.25, 0.5, 0.75))
-plot(my.borders, add = TRUE, col = NA, border = "darkgreen", lwd = 1)
+Calculate sample sizes for the African continent.
+
+<<sample.size.africa, tidy = FALSE>>=
+countries.codes.africa <- iso.3166$String.code[match(c(Madagascar, Egypt,
+                                 West, South.and.east), iso.3166$String)]
+n.persons.attitudes.africa <- my.dt.clean[country %in% countries.codes.africa,
+                               length(which(is.na(beat01_couple) == FALSE)), ]
+n.local.areas.attitudes.africa <- my.dt.clean[country %in% countries.codes.africa
+  & is.na(beat01_couple) == FALSE, length(unique(cluster1)), ]
+n.surveys.attitudes.africa <- length(unique(sapply(strsplit(as.character(
+    my.dt.clean[country %in% countries.codes.africa &
+                is.na(beat01_couple) == FALSE, cluster1]),
+    ".", fixed = TRUE), function(x) { paste(x[c(1, 3)], collapse = ".") })))
+@ 
+
+<<africa-IPV-attitudes-plot, fig.cap = paste0("Estimated proportion of women in the local area who think IPV can be justified, Africa. Country borders in darkgreen, and countries without data in gray. Number of women = ", n.persons.attitudes.africa, ", number of local areas = ", n.local.areas.attitudes.africa, ". Kriging performed on data compiled from ", n.surveys.attitudes.africa, " surveys funded by the DHS."), fig.width = 5, fig.height = 9, fig.align = "center">>=
+my.raster <- terra::clamp(terra::unwrap(serializable.raster), lower=0, upper=1, values=TRUE)
+my.borders <- terra::unwrap(serializable.border)
+
+## Load and unserialize the raster vector for the whole of Africa
+load(paste0(africa.map.path, "africa-lowres.RData"))
+africa <- terra::unwrap(africa)
+
+terra::plot(my.raster, col = my.palette.f(101), range = c(0, 1), plg = list(at = seq(from = 0, to = 1, by = 0.1)), axes = TRUE, xlim = terra::ext(africa)[c(1, 2)], ylim = terra::ext(africa)[c(3, 4)])
+
+## Fill with gray
+terra::plot(africa, col = "gray80", add = TRUE)
+
+## Overwrite with proper data where available
+terra::plot(my.raster, col = my.palette.f(101), range = c(0, 1), add = TRUE)
+
+## Add the relevant borders
+terra::plot(my.borders, add = TRUE, col = NA, border = "darkgreen", lwd = 1)
 
 @ 
 
