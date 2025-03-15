@@ -801,7 +801,7 @@ serializable.border <- terra::wrap(results[[2]])
 
 Plot exposure to IPV in Africa.
 
-<<africa-IPV-exposure-plot, fig.cap = paste0("Proportion women in the local area who have exposed to violence by their current husband, Africa. Country borders in darkgreen, and countries without data in gray. Number of women = ", n.persons.exposure.africa, ", number of local areas = ", n.local.areas.exposure.africa, ". Kriging performed on data compiled from ", n.surveys.exposure.africa, " surveys funded by the DHS."), fig.width = 5, fig.height = 9, fig.align = "center">>=
+<<africa-IPV-exposure-plot, fig.cap = paste0("Proportion women in the local area who have exposed to violence by their current husband, Africa. Country borders in darkgreen, and countries without data in gray. Number of women = ", n.persons.exposure.africa, ", number of local areas = ", n.local.areas.exposure.africa, ". Kriging performed on data compiled from ", n.surveys.exposure.africa, " surveys funded by the DHS."), fig.width = 5, fig.height = 5, fig.align = "center">>=
 my.raster <- terra::clamp(terra::unwrap(serializable.raster), lower=0, upper=1, values=TRUE)
 my.borders <- terra::unwrap(serializable.border)
 
