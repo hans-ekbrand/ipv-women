@@ -1,0 +1,884 @@
+\documentclass[10pt,english]{article}
+\usepackage[paperwidth=164mm, paperheight=280mm, top=19mm, bottom=19mm, left=1cm, right=1cm]{geometry} % 16:9 three pages in a row
+\usepackage[english]{babel}
+\usepackage{longtable}
+\usepackage{fontspec}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{varioref} %% vref
+\usepackage{paralist} %% compactenum
+\usepackage{siunitx} %% \num
+\usepackage{IEEEtrantools} % proper indentation for multi-line equations
+\usepackage{amsmath} %% \pmatrix
+\usepackage{subfig}
+\usepackage{apacite}
+
+%% make a single « start and end a chunk of \texttt{}, and two «« to represent the literal «.
+\catcode`«=\active
+\def«#1«{\texttt{#1}}
+
+\begin{document}
+
+% This chunk is needed to make sure evaluation is taking place in the current directory. The other settings are nice but not as important.
+<<setup.outer, echo=FALSE, tidy=FALSE, message=FALSE>>=
+library(knitr)
+opts_chunk$set(results='hide', cache=TRUE, echo=TRUE, warning=TRUE, fig.width=4, fig.height=4, fig.pos = 'htb', tidy.opts=list(blank=FALSE, width.cutoff=50), background='white', tidy=TRUE, error=TRUE, message=FALSE, dev="png", dpi = 200, autodep = TRUE)
+opts_knit$set(root.dir = ".")
+options(scipen=999)
+@
+
+<<setup.dir, echo=FALSE, tidy=FALSE, message=FALSE>>=
+## SNIC
+if(file.exists("/mimer/NOBACKUP/groups/globalpoverty1/hans")){
+    my.dir <- "/mimer/NOBACKUP/groups/globalpoverty1/hans/global-living-conditions"
+    ## "africa-lowres.RData"
+    africa.map.path <- "~/"
+    my.max.file.size.for.parallelisation = 9000000000
+    ## "GDL-Subnational-GDI-data.csv", "GDL Shapefiles V6.4"
+    gdl.path <- "/mimer/NOBACKUP/groups/globalpoverty1/hans/global-living-conditions/"
+    path.to.python <- "/usr/bin/python3"
+}
+## 245
+if(file.exists("/media/sf_Our_data/Data/DHS")){
+    my.dir <- "/media/sf_Our_data/Data/DHS"
+    africa.map.path <- "~/annex/projekt/child-poverty/statiska-eller-stora-filer/"
+    my.max.file.size.for.parallelisation = 2000000000
+    gdl.path <- "~/annex/projekt/global-living-conditions/stora-eller-statiska-filer/"  
+}
+if(Sys.info()["sysname"] == "Windows"){
+    path.to.python <- "C:/Users/hanse/miniconda3/python.exe"
+} 
+
+@
+
+\section{Install software}
+To compile this document, including rendering the graphs, a working «R« and «Python/PYMC« installation is assumed. If run a on High-performance computing (HPC) cluster with restrictions on software installation that inhibits on the fly installation of needed «R« and «Python« packages, make sure the following «R« packages are installed.
+
+<<install.packages>>=
+## Install necessary R packages
+required.packages <- c("lme4", "data.table", "xtable", "effects", "parallel", "future", "doFuture", "foreach", "sf", "sp", "terra", "parallelly", "cooltools", "raster", "formatR", "lwgeom", "autoFRK", "rnaturalearthdata", "rnaturalearth")
+for(package in required.packages){
+    if(!require(package, character.only=TRUE)){
+        install.packages(package, character.only=TRUE)
+    }
+}
+@
+
+\section{Prepare data}
+Download and standardize data with the R package «globallivingconditions«. Construct the variables «woman.exposed.to.IPV«, «woman.thinks.IPV.can.be.justified« and «man.thinks.\-IPV.can.be.justified«. Based on «woman.thinks.IPV.can.be.justified« and the sampling structure, create «justifyIPV\_cluster«. In a similar vein, construct the variable «viol01\_cluster« based on «woman.exposed.to.IPV«.
+
+Create the following variables: «beat01\_couple« (attitude to IPV), «iliterate\_couple«, «decide2\_health« (how are decisions made about health care for the woman), «decide2\_purchases« (how are decisions made about large purchase), «edudeviation« (difference in education in the couple) , «iwi2« (wealth level of the household), «lnage\_wife« (the age of the wife, logarithm), «ln\_numb\_of\_children« (number of children, logarithm), «gdi\_s« (gender index at the regional level), «gni\_s« (estimated gross national income at the regional level).
+
+«beat01\_couple« is a classification of the couples into one of the four possible combinations of attitudes to IPV by the wife and the husband in the couple:
+
+\begin{itemize}
+\item No one accepts IPV 
+\item Wife accepts IPV 
+\item Husband accepts IPV 
+\item Both accept IPV 
+\end{itemize}
+
+It is based on the following five questions, encoded in 10 variables (5 for the husband and 5 for the man), based on the the following statment:
+
+``In your opinion, is a husband justified in hitting or beating his wife in the following situations:''
+
+The table below show which variable encodes the answer from the man and the woman respectively for each hypothetical situation.
+\begin{table}
+  \begin{centering}
+  \begin{tabular}{lll}
+    \toprule
+    Question & Women & Men \\
+    \midrule
+    If she goes out without telling him? & V744A & MV744A \\
+    If she neglects the children? & V744B & MV744B \\
+    If she argues with him? & V744C & MV744C \\
+    If she refuses to have sex with him? & V744D & MV744D \\
+    If she burns the food? & V744E & MV744E \\
+    \bottomrule
+  \end{tabular}
+  \caption{The scenarios used to query both women and men about if IPV can be justified.}
+\end{centering}
+\end{table}
+
+
+\begin{description}
+\item[«beat01\_couple«] Match couples via «V034« for women and «PersonID.unique« for men, four different levels representing the four possible combinations of two boolean variables.
+\item[«decide2\_health«] Encode how decisions on health care for the wife are made based on «(M)V744A«. Combine all sorts of disagreements into one level. Discard couples that agree on the very unusual option: ``Some else decides'' (only recorded in 1 in 1000 couples for health care for the wife).
+\item[«decide2\_purchases«] Same as for health decisions but based on «(M)V744B«
+\item[«edudeviation«] The education level of the husband «(MV149)« compared to the educational level of the wife.
+
+\end{description}
+
+Also add GDI and HDI subnational data from the \href{Global Data Lab}{https://globaldatalab.org/shdi/table/sgdi/} (For now, use manually downloaded local CSV-files and map our GIS points to their Shapefiles, but when their package is fixed, use that instead of local files).
+
+<<load.data.from.scratch>>=
+library(devtools)
+install_bitbucket(repo = "hansekbrand/iwi", upgrade = "never")
+install_bitbucket(repo = "hansekbrand/DHSharmonisation", ref="debug", upgrade = "never")
+library(globallivingconditions)
+load("~/user_credentials_dhs.RData") # a list with two named elements:
+                                   # "dhs.user" and "dhs.password" 
+my.dt <- download.and.harmonise(
+    dhs.user=credentials$dhs.user,
+    dhs.password=credentials$dhs.password,
+    vars.to.keep = NULL,
+    file.types.to.download = c("PR", "GE", "IR", "MR", "KR"),
+    variable.packages = c("wealth", "empowerment", "matching"),
+    max.file.size.for.parallelisation = my.max.file.size.for.parallelisation,
+    directory = my.dir,
+    check.dhs.for.more.data = FALSE
+)
+
+## Domestic Violence
+my.dt[ , woman.exposed.to.IPV := apply(my.dt[, list(empowerment.D106, empowerment.D107, empowerment.D108), ], 1, any), ]
+my.dt[ , woman.thinks.IPV.can.be.justified := apply(my.dt[, list(empowerment.V744A, empowerment.V744B, empowerment.V744C, empowerment.V744D, empowerment.V744E), ], 1, any), ]
+my.dt[ , man.thinks.IPV.can.be.justified := apply(my.dt[, list(empowerment.MV744A, empowerment.MV744B, empowerment.MV744C, empowerment.MV744D, empowerment.MV744E), ], 1, any), ]
+
+## Keep only cases with data on at least one of our focal variables
+my.dt <- my.dt[which(is.na(woman.thinks.IPV.can.be.justified) == FALSE |
+                           is.na(woman.thinks.IPV.can.be.justified) == FALSE |
+                           is.na(man.thinks.IPV.can.be.justified) == FALSE), ]
+
+contextuals.f <- function(var.name, my.dt){
+    ## make var.name a binary variable
+    my.dt$source.var <- ifelse(my.dt[[var.name]] == 1, TRUE, FALSE)
+
+    n.true.by.cluster <- my.dt[, list(n.true = length(which(source.var))), by = ClusterID]
+    n.no.na.by.cluster <- my.dt[, list(total.n = length(which(! is.na(source.var)))), by = ClusterID]
+    my.dt.2 <- merge(n.no.na.by.cluster, n.true.by.cluster)
+    ## what to do with the cluster with only a single observation? Are these observations part of a cluster at all?
+    ## discard them
+    ## my.dt.2 <- my.dt.1[total.n > 1, ]
+    ## there are three cases: 0; 0 < n.true < total.n; n.true == total.n
+    ## only in the middle case, we need to calculate something
+    these.have.zero.true.cases <- which(my.dt.2$n.true == 0)
+    these.have.only.true.cases <- which(my.dt.2$n.true == my.dt.2$total.n)
+    clusters.with.disagreement <- my.dt.2[which(! (my.dt.2$n.true == 0 | (my.dt.2$n.true == my.dt.2$total.n))), ]
+    
+    ## head(clusters.with.disagreement)
+    ## Key: <ClusterID>
+    ##                                  ClusterID total.n n.true
+    ##                                     <fctr>   <int>  <int>
+    ## 1: IA.Andaman And Nicobar Islands.74.10082       8      2
+    ## 2: IA.Andaman And Nicobar Islands.74.10090       8      1
+    ## 3: IA.Andaman And Nicobar Islands.74.10183       8      2
+    
+    ## the two possible manipulations are:
+    ## decrease total.n by 1
+    ## decrease n.true by 1 and total.n by 1
+    
+    ## save two dataset, one where total.n is decreased by one (ego had FALSE, so removing ego from the total did not change the n.true)
+    ## the other one with the double manipulation.
+    
+    ego.was.false <- clusters.with.disagreement[, list(ClusterID, average.without.ego = n.true / (total.n - 1)), ]
+    ego.was.true <- clusters.with.disagreement[, list(ClusterID, average.without.ego = (n.true - 1) / (total.n - 1)), ]
+    my.all.true <- my.dt.2[these.have.only.true.cases, list(ClusterID, average.without.ego = 1), ]
+    my.all.false <- my.dt.2[these.have.zero.true.cases, list(ClusterID, average.without.ego = 0), ]
+    
+    ClusterID.data.ego.was.true.disagree <- my.dt[which(ClusterID %in% clusters.with.disagreement$ClusterID & source.var), list(ClusterID, PersonID.unique, source.var), ]
+    ClusterID.data.ego.was.false.disagree <- my.dt[which(ClusterID %in% clusters.with.disagreement$ClusterID & ! source.var), list(ClusterID, PersonID.unique, source.var), ]
+    
+    ## prepare merging
+    setkey(ClusterID.data.ego.was.true.disagree, ClusterID)
+    setkey(ClusterID.data.ego.was.false.disagree, ClusterID)
+    
+    my.true.disagreement <- merge(ClusterID.data.ego.was.true.disagree, ego.was.true)
+    my.false.disagreement <- merge(ClusterID.data.ego.was.false.disagree, ego.was.false)
+    
+    ## agreement
+    ClusterID.data.ego.was.true.agree <- my.dt[which(! ClusterID %in% clusters.with.disagreement$ClusterID & source.var), list(ClusterID, PersonID.unique, source.var), ]
+    ClusterID.data.ego.was.false.agree <- my.dt[which(! ClusterID %in% clusters.with.disagreement$ClusterID & ! source.var), list(ClusterID, PersonID.unique, source.var), ]
+    
+    ## prepare merging
+    setkey(ClusterID.data.ego.was.true.agree, ClusterID)
+    setkey(ClusterID.data.ego.was.false.agree, ClusterID)
+    
+    my.true.agreement <- merge(ClusterID.data.ego.was.true.agree, my.all.true)
+    my.false.agreement <- merge(ClusterID.data.ego.was.false.agree, my.all.false)
+    
+    temp.1 <- rbind(my.true.agreement, my.false.agreement, my.true.disagreement, my.false.disagreement)
+    temp.2 <- temp.1[, list(PersonID.unique, average.without.ego)]
+    colnames(temp.2)[2] <- "average.without.ego"
+    setkey(temp.2, PersonID.unique)
+    return(temp.2)
+}
+
+justifyIPV_cluster <- contextuals.f("woman.thinks.IPV.can.be.justified", my.dt)
+viol01_cluster <- contextuals.f("woman.exposed.to.IPV", my.dt)
+setkey(my.dt, PersonID.unique)
+
+for(x in c("justifyIPV_cluster", "viol01_cluster")){
+    my.cluster.var <- get(x)
+    colnames(my.cluster.var)[2] <- x
+    my.dt <- merge(my.dt, my.cluster.var, all.x = TRUE, all.y = FALSE)
+}
+
+## match partners in a household by using matching V034 for women with PersonID.unique for men.
+## empowerment.V034 contains the line number of the husband
+## my.map records, for women with a husband, the index number of the man's record
+## subset with that index number to add a feature of the husband onto the record of the wife.
+my.map <- my.dt[, match(paste(HouseholdID, empowerment.V034, sep = "."), PersonID.unique), ]
+my.dt[, husband.thinks.IPV.can.be.justified := man.thinks.IPV.can.be.justified[my.map], ]
+my.dt[which(woman.thinks.IPV.can.be.justified &
+            husband.thinks.IPV.can.be.justified),
+      beat01_couple := "Both justify IPV", ]
+my.dt[which(! woman.thinks.IPV.can.be.justified &
+            ! husband.thinks.IPV.can.be.justified),
+      beat01_couple := "No one justifys IPV", ]
+my.dt[which(! woman.thinks.IPV.can.be.justified &
+            husband.thinks.IPV.can.be.justified),
+      beat01_couple := "Husband justifys IPV", ]
+my.dt[which(woman.thinks.IPV.can.be.justified &
+            ! husband.thinks.IPV.can.be.justified),
+      beat01_couple := "Wife justifys IPV", ]
+
+## How are decisions on made?
+decisions.f <- function(answer.from.wife, answer.from.husband){
+    results <- rep(NA, length(answer.from.wife))
+    results[which(answer.from.wife == "Respondent and husband/partner" &
+                  answer.from.husband == "Respondent and wife/partner")] <- "joint decisions"
+    results[which(answer.from.wife == "Respondent alone" &
+                  answer.from.husband == "Wife/partner alone")] <- "wife decides"
+    results[which(answer.from.wife == "Husband/partner alone" &
+                  answer.from.husband == "Respondent alone")] <- "husband decides"
+    ## Wife says I decide, husband says something else
+    results[which(answer.from.wife == "Respondent alone" &
+                  answer.from.husband != "Wife/partner alone")] <- "don't agree"
+    ## Wife says my husband decides, husband says something else
+    results[which(answer.from.wife == "Husband/partner alone" &
+                  answer.from.husband != "Respondent alone")] <- "don't agree"
+    ## Wife says we decide together, partners says something else
+    results[which(answer.from.wife == "Respondent and husband/partner" &
+                  answer.from.husband != "Respondent and wife/partner")] <- "don't agree"
+    ## Wife says Someone else decide, partners says something else
+    results[which(answer.from.wife == "Someone else" &
+                  answer.from.husband != "Someone else")] <- "don't agree"
+    ## Wife OR husband says "Respondent and other person"
+    results[which(answer.from.wife == "Respondent and other person" |
+                  answer.from.husband == "Respondent and other person")] <- "don't agree"
+    return(results)
+}
+
+## How are decisions made on health care and large purchases
+my.dt[, decide2_health := decisions.f(empowerment.V743A, empowerment.MV743A[my.map]), ]
+my.dt[, decide2_purchases := decisions.f(empowerment.V743B, empowerment.MV743B[my.map]), ]
+
+## Educational differences: edudeviation
+## Make V149 and MV149 ordered factors with this ordering
+education.levels.ordered <- c("No education", "Incomplete primary", "Complete primary", "Incomplete secondary", "Complete secondary", "Higher")
+my.dt[ , empowerment.V149 := factor(empowerment.V149, levels = education.levels.ordered, ordered = TRUE), ]
+my.dt[ , empowerment.MV149 := factor(empowerment.MV149, levels = education.levels.ordered, ordered = TRUE), ]
+my.dt[which(empowerment.V149 == empowerment.MV149[my.map]), edudeviation := "No difference", ]
+my.dt[which(as.numeric(empowerment.V149) < as.numeric(empowerment.MV149[my.map])), edudeviation := "Husband has higher edu.", ]
+my.dt[which(as.numeric(empowerment.V149) > as.numeric(empowerment.MV149[my.map])), edudeviation := "Wife has higher edu.", ]
+
+## ln_numb_of_children, 
+## Björns original used BORDX which includes dead children.
+my.dt[ , ln_numb_of_children := log(0.5 + apply(cbind(empowerment.V202, empowerment.V203, empowerment.V204, empowerment.V205), 1, sum)), ]
+
+my.dt[ , lnage_wife := log(age), ]
+
+gdi <- setDT(read.csv(paste0(gdl.path, "GDL-Subnational-GDI-data.csv"), check.names = FALSE))
+## keep only the necessary columns from hdi and gdi
+## GDI has no data in columns "older" than 2000
+my.cols <- c("GDLCODE", 2000:2022)
+gdi.clean <- gdi[ , my.cols, with = FALSE]
+
+## use st_intersects() to map points to polygons
+## apply st_intersects() only once per unique coordinate
+## create the set of all unique points
+unique.pts <- unique(na.omit(my.dt[, list(lon, lat), ]))
+sf_points <- sf::st_as_sf(unique.pts, coords = c("lon", "lat"), crs = 4326)
+
+## There are four invalid polygons in gdl.polygons, correct them.
+## invalid_polygons <- which(!st_is_valid(gdl.polygons))
+## invalid_polygons
+## [1]  105  544 1414 1667
+gdl.polygons <- sf::st_make_valid(sf::st_read(paste0(gdl.path, "GDL Shapefiles V6.4")))
+gdl.classification <- sf::st_intersects(sf_points, gdl.polygons)
+## Get the area names from the result of st_intersects
+indices <- sapply(gdl.classification, function(x) { x[1] })
+gdl.codes <- gdl.polygons$gdlcode[indices]
+unique.pts$GDLCODE <- gdi.clean$GDLCODE[match(gdl.codes, gdi.clean$GDLCODE)]
+unique.pts[, lon.lat.identifier := paste(lon, lat, sep = "."), ]
+unique.pts.clean <- unique.pts[ , list(lon.lat.identifier, GDLCODE), ]
+
+## convert gdi.clean from wide to long
+# Convert to long format
+gdi.long <- melt(gdi.clean, id.vars = "GDLCODE", 
+                variable.name = "year.of.interview", 
+                value.name = "GDI")
+gdi.long[, year.of.interview := as.numeric(as.character(year.of.interview)), ]
+
+## Now that we know which GLDCODE for which coordinate, create a data set with ClusterID, coordinates, and year, and add the GDL data to that set.
+
+my.temp.set <- unique(my.dt[which(is.na(lon) == FALSE), list(ClusterID, lon.lat.identifier = paste(lon, lat, sep = "."), year.of.interview), ])
+## add GDLCODE to my.temp.set, using unique.pts.clean
+setkey(my.temp.set, lon.lat.identifier)
+setkey(unique.pts.clean, lon.lat.identifier)
+my.temp.set.2 <- merge(my.temp.set, unique.pts.clean)
+## The lon.lat.identifier is no longer useful
+my.temp.set.2[, lon.lat.identifier := NULL, ]
+
+setkey(my.temp.set.2, GDLCODE, year.of.interview)
+setkey(gdi.long, GDLCODE, year.of.interview)
+my.temp.set.3 <- merge(my.temp.set.2, gdi.long)
+
+## Repeat with GNI
+## Gross National Income per Capita in 1000 US-Dollars (2011 PPP)
+gni <- setDT(read.csv(paste0(gdl.path, "GDL-Log-Gross-National-Income-per-capita-in-1000-US-Dollars-(2011-PPP)-data.csv"), check.names = FALSE))
+gni.clean <- gni[ , my.cols, with = FALSE]
+gni.long <- melt(gni.clean, id.vars = "GDLCODE", 
+                variable.name = "year.of.interview", 
+                value.name = "GNI")
+gni.long[, year.of.interview := as.numeric(as.character(year.of.interview)), ]
+setkey(gni.long, GDLCODE, year.of.interview)
+my.temp.set.4 <- merge(my.temp.set.3, gni.long)
+
+## If GDLCODE is no longer useful, drop it
+## We might still use it though.
+## my.temp.set.4[, GDLCODE := NULL, ]
+
+## merge back to my.dt
+setkey(my.temp.set.4, ClusterID, year.of.interview)
+setkey(my.dt, ClusterID, year.of.interview)
+my.dt.temp <- merge(my.dt, my.temp.set.4)
+
+## Use the letter code instead of the digit code, so we get more informative labels
+my.dt.temp[, country := iso.3166$String.code[match(country.code.ISO.3166.alpha.3, iso.3166$numeric)], ]
+
+## rename columns to match previous data file
+colnames(my.dt.temp) <- gsub("woman.exposed.to.IPV", "viol01_wife", colnames(my.dt.temp))
+colnames(my.dt.temp) <- gsub("iwi", "iwi2", colnames(my.dt.temp))
+colnames(my.dt.temp) <- gsub("ClusterID", "cluster1", colnames(my.dt.temp))
+colnames(my.dt.temp) <- gsub("GDI", "gdi_s", colnames(my.dt.temp))
+colnames(my.dt.temp) <- gsub("GNI", "gni_s", colnames(my.dt.temp))
+colnames(my.dt.temp) <- gsub("empowerment.V149", "v149", colnames(my.dt.temp))
+
+## keep only the needed columns, and only complete cases
+## my.dt.clean <- my.dt.temp[which(is.na(beat01_couple) == FALSE &
+my.dt.clean <- my.dt.temp[which(is.na(beat01_couple) == FALSE &
+                                is.na(gdi_s) == FALSE &
+                                is.na(iwi2) == FALSE),                                
+                          list(viol01_wife, beat01_couple, v149, edudeviation, decide2_purchases, decide2_health, gdi_s, gni_s, viol01_cluster, justifyIPV_cluster, iwi2, country, cluster1, ln_numb_of_children, lnage_wife, lon, lat), ]
+
+## z-standardize some numeric variables
+for(var in c("gni_s", "iwi2")){
+    my.dt.clean[[var]] <- scale(my.dt.clean[[var]])
+}
+
+## Treat the states of India as countries (note that they already have separate values for GDI and GNI, the country change only affect the random intercept).
+these <- which(my.dt.clean$country == "IND")
+my.dt.clean$country[these] <- as.vector(sapply(as.character(my.dt.clean$cluster1[these]), function(x) {
+   strsplit(x, ".", fixed = TRUE)[[1]][2]
+}))
+
+write.csv(my.dt.clean, file = "ipv-women2.csv", row.names = FALSE)
+save(my.dt.clean, file = "my.dt.clean.RData")
+justifyIPV_cluster <- my.dt[which(! is.na(lon) & ! is.na(justifyIPV_cluster)), list(country.code.ISO.3166.alpha.3, lon, lat, justifyIPV_cluster), ]
+viol01_cluster <- my.dt[which(! is.na(lon) & ! is.na(viol01_cluster)), list(country.code.ISO.3166.alpha.3, lon, lat, viol01_cluster), ]
+
+## clean up
+rm(my.dt, my.dt.temp, my.temp.set.4, my.temp.set.3, my.temp.set.2, my.temp.set, gdi, gni, gdi.clean, gni.clean, gdi.long, gni.long, my.cols, my.map, unique.pts.clean, unique.pts, indices, gdl.polygons, gdl.classification, gdl.codes, sf_points, education.levels.ordered)
+gc(verbose = FALSE)
+@
+
+\section{Mapping IPV - Exposure and Attitudes }
+<<set.gis.path>>=
+gis.map <- paste0(my.dir, "/GIS-borders/")
+@
+
+Apply \href{Kriging}{https://en.wikipedia.org/wiki/Kriging} on the data. Kriging gives a predicted smooth surface for the estimate of the dependent variable in an area. While Kriging can use (multiple) independent variables in this estimation, here it is used without any independent variables, so the input data used is only the coordinates the observations, and the observed value on the dependent variable at those coordinates. The procedure is applied on two different outcomes, the proportion of women in local area who thinks IPV can be justified, and the proportion of women in the local area that have experienced IPV by their current husband. Technically, Kriging predicts values for a large number of points in a grid covering the area of interest, and the resolution of the grid, the width and height of each cell, was set to 10 kilometers, i.e. 100 square kilometers. Disconnected areas, e.g. islands, were estimated separately while all adjacent countries were estimated together. For South east Asia, the total number of cells for which we estimated a value is 64287; Africa and Madagascar covered [fill in number here].
+
+The coordinate data is originally in longitude and latitude, i.e. referencing locations on a sphere. The Kriging algorithm assumes a flat coordinate system, so we project the coordinate data to the webmercator refence system (the code for the webmercator system is «EPSG:3857«)
+
+In rare cases a single local area can be surveyd twice, or the random replacement algorithm DHS uses to enhance the integrity of the respondends can make two different areas end up having the sam coordinate, but the the Kriging algorithm in use here assumes a single unique values per coordinate. To solve this, we calculate the mean value for all unique coordinates.
+
+We have made two versions of these maps: one version uses only the latest measurements of IPV and attitudes toward IPV, the over version uses all available data which means that in a single country there can be data from multiple survey waves, i.e. repeated cross-sectional data. The mapping algorithm is only spatial, not spatio-temporal, which means the predictions are not for any specified point in time and the all measurements are weighted equally regardless of when they are made.
+
+The bounding polygon for the Kriging process is created by merging the borders of all adjacent countries (in case of islands and or other disconnected areas, the country border is used directly). When preprocessing of the data we use the «R« packages «sp« and «raster«. The Kriging is done by \href{https://cran.r-project.org/web/packages/autoFRK/index.html}{«autoFRK«}, a package that implements a special version of Kriging that can work with massive amounts of datapoints \cite{Tzeng03042018}. The analyses are reproducible from scratch by the scripts we provide in the source code for this document.
+
+\section{Prepare input data for Kriging}
+
+The respondents live in disconnected parts of the world, and we can assume that disconnected areas can be processed separately, ie that we do not lose valueable information by running separate analyses for Africa and South east Asia, or even by running a separate analysis on islands as Madagascar and the Philippines, or even other disconnected areas. Some countries are disconnected because there is no data for their neighbouring countries, e.g. Egypt and Cambodia.
+
+Construct a set of tables, one for each disconnected area, with the following structure: coordinates, dependent variable (either the proportion exposed to IPV, or the proportion women who thinks IPV can be justified).
+
+\begin{table}[ht]
+\centering
+\begin{tabular}{rrrr}
+  \toprule
+ & lon & lat & viol01\_cluster \\ 
+  \midrule
+1 & 29.570 & -2.733 & 0.000 \\ 
+  2 & 25.835 & -17.862 & 0.231 \\ 
+  3 & 9.691 & 12.436 & 0.032 \\ 
+  4 & 79.477 & 25.206 & 0.111 \\ 
+  5 & 86.884 & 25.758 & 0.714 \\ 
+  6 & 79.437 & 17.020 & 0.333 \\ 
+   \bottomrule
+\end{tabular}
+\end{table}
+
+The coordinates will be converted from longitude, latitude (which uses degree as units) into the webmercator reference system (which uses meter as the unit) before kriging is applied.
+
+\subsection{Define the "islands"}
+\label{sec:define-islands}
+
+It turns out that due to data availablility Africa is divided into two disconnected large areas: west and (south-)east.
+
+The disconnected parts in Africa.
+
+<<define.islands.africa, tidy = FALSE>>=
+Madagascar <- "Madagascar"
+Egypt <- "Egypt"
+West <- c("Benin", "Burkina Faso", "Cameroon", "Chad", "Côte d'Ivoire", "Gabon",
+          "Ghana", "Guinea", "Liberia", "Mali", "Mauritania", "Nigeria",
+          "Senegal", "Gambia", "Sierra Leone", "Togo")
+South.and.east <- c("Zambia", "Zimbabwe", "South Africa",
+     "United Republic of Tanzania", "Uganda", "Rwanda", "Namibia", "Mozambique",
+     "Malawi", "Lesotho", "Kenya", "Ethiopia",
+     "Democratic Republic of the Congo", "Burundi", "Angola")
+@
+
+The disconnected parts in South Asia.
+
+<<define.islands.asia>>=
+india.et.al <- c("Myanmar", "India", "Bangladesh", "Nepal", "Pakistan")
+philippines <- "Philippines"
+timor <- "Timor-Leste"
+cambodia <- "Cambodia"
+@
+
+\subsection{Prepare data for each continent}
+\label{sec:define-function-}
+
+The function creates a set of tables, and the relevant country borders, for a given set of countries.
+
+\begin{itemize}
+\item Select the relevant subset of observations for this set of countries.
+\item Discard observations with either missing coordinates or missing data.
+\item Create a geographical object based in the coordinates.
+\item Project the geographical object to the webmercator coordinate system.
+\item Export the projected coordinates and the observations to an ordinary table.
+\item Import the borders for each country in the set.
+\item If there are multiple countries in the set, merge the country borders to a single polygon.
+\item Project the polygon from lon/lat to webmercator.
+\item Create a grid of points, separated by 10.000 meters, based on the extent of the polygon.
+\item Set all points in the grid that is outside the polygon to NA, to indicate that they are not relevant.
+\item Save the coordinates of all points that are not NA to an ordinary table.
+\end{itemize}
+
+This creates the two tables used for kriging (the observations), and predictions (the gridpoints) both in the correct reference system. In addition, also create the country borders that should be displayed on the maps. The country border data comes from the «R« package «rnaturalearthdata« accessed with the package «rnaturalearth«. To make the final maps less cluttered, the function accepts an argument for which country borders to ignore.
+
+<<generate.input.data.for.kriging>>=
+generate.input.data.for.kriging.f <- function(my.set, my.var, my.clean.dt, projection = "EPSG:3857", my.cell.width = 10000, country.borders.to.ignore = NULL){
+    ## Add country to the data points object, so that we easily implement different sampling strategies for different countries.
+    ## India has more points than we can make proper use of. Possibly also Burundi and Rwanda
+    my.clean.dt[, country := iso.3166$String[match(country.code.ISO.3166.alpha.3, iso.3166$numeric)], ]
+    my.dt.with.data <- my.clean.dt[ 
+        country.code.ISO.3166.alpha.3 %in% iso.3166$numeric[match(my.set, iso.3166$String)] &
+        ! is.na(lon) &
+        ! is.na(my.var), ] ## only save one observation per coordinate, take the mean value of my.var
+    my.dt.with.data[, coordinate := paste(lon, lat, sep = "."), ]
+    my.dt <- my.dt.with.data[, list(temp = mean(get(my.var), na.rm = TRUE), lon=unique(lon), country = unique(country), lat = unique(lat)), by = coordinate]
+    lon <- my.dt$lon; lat <- my.dt$lat; my.dt[, c("coordinate", "lon", "lat") := NULL, ]; colnames(my.dt)[1] <- my.var
+    foo <- suppressWarnings(sp::SpatialPointsDataFrame(coords = matrix(c(lon, lat), ncol = 2), 
+                                      data = my.dt,
+                                      proj4string=sp::CRS("EPSG:4326")))
+    my.proj <- sp::CRS(projection)
+    points.with.data <- sp::spTransform(foo, my.proj)
+
+    ## import the borders for these countries
+    world <- rnaturalearth::ne_countries(scale = 50, returnclass = "sv")
+    borders <- world[as.numeric(world$iso_n3_eh) %in% unique(my.dt.with.data$country.code.ISO.3166.alpha.3), ]
+    projected.countries <- terra::project(borders, "EPSG:3857")
+
+    ## ## Create grid points, using a slightly enlarged version, twice the cell width
+    ## expanded.countries <- terra::buffer(projected.countries, width = 200000)
+    ## template <- terra::rast(expanded.countries, resolution = c(my.cell.width, my.cell.width))
+    template <- terra::rast(projected.countries, resolution = c(my.cell.width, my.cell.width))
+    terra::values(template) <- rep(1, terra::ncell(template))
+    ## r <- terra::mask(template, expanded.countries)
+    r <- terra::mask(template, projected.countries)    
+    # Get indices of cells in the polygon
+    valid.cells <- which(!is.na(terra::values(r)))
+    ## Extract midpoints of all those cells
+    my.grid.points <- as.data.frame(terra::xyFromCell(r, valid.cells))
+
+    ## for countries with many small islands plotting the borders is a bad idea.
+    ## If requrested, create a subset of borders to actually plot
+    all.countries <- unique(my.dt.with.data$country)
+    if(is.null(country.borders.to.ignore) == FALSE & length(which(country.borders.to.ignore %in% all.countries)) > 0){
+        names.of.countries.to.include <- all.countries[which(all.countries %in% country.borders.to.ignore == FALSE)]
+        borders.to.plot <- world[world$admin %in% names.of.countries.to.include, ]
+    } else {
+        borders.to.plot <- borders
+    }
+    
+    ## Turns out the grid points do no need to be a geographical object,
+    ## any valid coordinates are fine.
+    point.data <- data.frame(x = points.with.data@coords[, 1],
+                             y = points.with.data@coords[, 2],
+                             temp = points.with.data@data[[my.var]],
+                             country = points.with.data@data[["country"]])
+    colnames(point.data)[3] <- my.var
+    
+    ## The first two elements are for kriging, the last two elements are useful for
+    ## plotting the end results. `borders` is for masking.
+    ## Note that they are SpatVector object, so make sure terra is loaded
+    ## And terra version 1.7.0 is required for wrap()
+    return(list(point.data, my.grid.points, terra::wrap(borders), terra::wrap(borders.to.plot)))
+}
+
+@
+
+<<setup.future>>=
+setup.future.f <- function(n = NA, type = NA){
+    ## n for number of workers.
+    ## type must be "multicore" or "multisession", and is ignored if the OS does not support multicore 
+    ## (in which case "multisession" is used).
+    ## when RAM is limited, "multisession" can be preferable, since the workers then start with an empty R session.
+
+    ## make sure foreach and future are loaded in the callers session
+    
+    if(is.na(n)){
+        ## use Slurm if available, fall back to system.
+        n.cores <- parallelly::availableCores(method = c("Slurm", "system"))
+    } else {
+        n.cores <- n
+    }
+    options(future.gc=TRUE)
+    if(parallelly::supportsMulticore()) {
+        options(mc.cores = n.cores)
+        if(is.na(type)){
+            my.log.f(paste(Sys.time(), "Setting up future using multicore and", n.cores, "cores."))
+            future::plan(future::multicore)            
+        } else {
+            stopifnot(type %in% c("multisession", "multicore"))
+            my.log.f(paste(Sys.time(), "Setting up future using multisession and", n.cores, "cores."))            
+            future::plan(type)
+        }
+    } else {
+        ## future::plan(future::multisession, gc=TRUE, workers=n.cores)
+        my.log.f(paste(Sys.time(), "Setting up future using multisession with", n.cores, "cores."))        
+        future::plan(future::multisession, workers=n.cores)
+    }
+    doFuture::registerDoFuture()
+    return(n.cores)
+}
+
+@ 
+
+<<start.future, cache = FALSE>>=
+library(doFuture); library(globallivingconditions); library(sf)
+setup.future.f()
+@
+
+A function that process all adjacent countries simultaneously, and aligns and merges the results to a single raster.
+
+<<kriging.full.pipeline>>=
+kriging.full.pipeline.f <- function(prepared.data, resolution = my.resolution * 1.1){
+    ## Africa or Asia, each with its own set of islands
+    library(data.table)
+
+    my.f <- function(data, newlocations){
+        proper.loc <- data.frame(x = data$x, y = data$y)
+        my.log.f(paste(Sys.time(), "Running autoFRK with", nrow(data), "data points starting with", proper.loc$x[1], "and", proper.loc$y[1],
+                 "using", nrow(newlocations), "prediction points. First value is", data[[3]][1], "Last value is", data[[3]][nrow(data)]))
+        ## foo <- autoFRK::autoFRK(Data=data[[3]], loc = proper.loc, maxK = 1/2 * nrow(data)^(1/2))
+        foo <- autoFRK::autoFRK(Data=data[[3]], loc = proper.loc)        
+        my.log.f(paste(Sys.time(), "predicting with autoFRK for", nrow(newlocations), " points"))
+        bar <- predict(foo, newloc = newlocations)
+        bar$pred.value[, 1]
+    }
+
+    my.raster <- sapply(1:length(prepared.data), function(j) {
+
+        ## For each island, determine if there are too many points to do kriging on the full set.
+        if(nrow(prepared.data[[j]][[1]]) > 90000){
+
+            ## There are two layers of sampling possibly involved here.            
+            ## Reduce the local point density
+            ## Reduce the global point density.
+
+            ## In Asia, it is enough to reduce locally high point density in India and Nepal.
+
+            ## In Afria both types of reduction would probably be a
+            ## good idea (locally high point density exists in "Rwanda")
+
+            ## The easy way out is just to define some African countries as "with abundance of point data".
+            
+            ## There are more than enough points from India and Nepal. And all African countries too.
+            
+            countries.with.abundance.of.point.data <- c("India", "Nepal", "Nigeria", "Kenya", "Malawi", "Uganda", "Zambia", "Chad", "Democratic Republic of the Congo", "Benin", "Burundi", "Ethiopia", "Ghana", "Burkina Faso", "United Republic of Tanzania", "Angola", "Cameroon", "Côte d'Ivoire", "Sierra Leone", "Mauritania", "Senegal", "Mozambique", "Mali", "Niger", "Rwanda", "Gabon", "Gambia", "Liberia", "Togo", "Lesotho", "Zimbabwe", "Namibia", "South Africa", "Guyana", "Comoros", "Swaziland")
+            
+            keep.these <- which(prepared.data[[j]][[1]]$country %in% countries.with.abundance.of.point.data == FALSE)
+            if(length(keep.these) > 0){
+                my.log.f(paste(Sys.time(), "Countries in this island that will included unconditionally:", paste(unique(prepared.data[[j]][[1]]$country[keep.these]), collapse = ", ")))
+            }
+            sample.these <- which(prepared.data[[j]][[1]]$country %in% countries.with.abundance.of.point.data)
+            if(length(sample.these) > 0){
+                my.log.f(paste(Sys.time(), "Countries in this island that will sampled:", paste(unique(prepared.data[[j]][[1]]$country[sample.these]), collapse = ", ")))
+            }
+
+            if(length(sample.these) > 0){            
+                ## Set a cap on the total amount of points, and fill
+                ## the rest from the countries which have more than
+                ## enough points.
+                max.n <- min(9000 - length(keep.these), length(sample.these))
+                sampled <- sample(sample.these, size = max.n)
+                my.log.f(paste(Sys.time(), "max.n =", max.n, "length of keep.these:", length(keep.these),
+                               "length sample.these:", length(sample.these)))
+                my.sets <- setDT(rbind(prepared.data[[j]][[1]][keep.these, ],
+                                 prepared.data[[j]][[1]][sampled, ]))
+            } else {
+                my.sets <- setDT(prepared.data[[j]][[1]])
+            }
+            my.sets[, country := NULL, ]
+            my.log.f(paste(Sys.time(), "class of my.sets", class(my.sets),
+                           "colnames of my.sets", paste(colnames(my.sets), collapse = ", ")))
+            kriging.results <- my.f(data=my.sets, newlocations = prepared.data[[j]][[2]])
+            
+    } else {
+        ## Remove 'country', to not confuse autoFRK.
+        my.data <- prepared.data[[j]][[1]]
+        setDT(my.data)
+        my.log.f(paste(Sys.time(), "No sampling. Countries in this island: ", paste(unique(my.data$country), collapse = ", ")))
+        my.data[, country := NULL, ]
+        kriging.results <- my.f(data = my.data, newlocations = prepared.data[[j]][[2]])
+    }
+        ## Create a single raster, take the mean if bootstrapping was used.
+        if(class(kriging.results) == "numeric"){
+            suppressWarnings(my.spdf <- sp::SpatialPointsDataFrame(
+                coords = prepared.data[[j]][[2]],
+                data = data.frame(viol01_cluster = kriging.results),
+                proj4string = sp::CRS("EPSG:3857")))
+            ## Create an empty grid
+            r <- raster::raster(raster::extent(my.spdf), res = resolution, crs = "EPSG:3857")
+            ## Fill it with the predictions, and cast into SpatRaster
+            raster.mean <- terra::rast(raster::rasterize(my.spdf, r, field = "viol01_cluster", fun = mean))
+        } else {
+            foo <- sapply(1:length(kriging.results), function(i){
+                my.data <- data.frame(viol01_cluster = kriging.results[[i]])
+                suppressWarnings(my.spdf <- sp::SpatialPointsDataFrame(
+                                                    coords = prepared.data[[j]][[2]],
+                                                    data = my.data,
+                                                    proj4string = sp::CRS("EPSG:3857")))
+                r <- raster::raster(raster::extent(my.spdf), res = resolution, crs = "EPSG:3857")
+                return(terra::rast(raster::rasterize(my.spdf, r, field = "viol01_cluster", fun = mean)))
+            })
+            raster.bar <- terra::rast(foo) # Convert list to RasterStack
+            raster.mean <- terra::app(raster.bar, mean) # Calculate mean for each cell
+        }
+        return(terra::wrap(raster.mean))
+
+    }, simplify = FALSE)
+
+    ## unwrap with rast
+    library(terra)
+    unpacked.raster <- lapply(my.raster, terra::unwrap)
+
+    ## Compute the union of extents
+    common.extent <- Reduce(terra::union, lapply(unpacked.raster, terra::ext))
+
+    # Create a template raster with the common extent and the resolution of the first raster
+    template <- terra::rast(ext=common.extent, res=terra::res(unpacked.raster[[1]]), crs=terra::crs(unpacked.raster[[1]]))
+    
+    ## Extend all rasters to this template
+    aligned.rasters <- lapply(unpacked.raster, function(r) terra::resample(r, template, method="bilinear"))
+
+    complete.raster <- do.call(terra::mosaic, aligned.rasters)
+
+    ## Transform back to longitude latitude
+    raster.long.lat <- terra::project(complete.raster, "EPSG:4326")
+
+    ## Concatenate the borders to plot and the borders to use to crop
+    borders.to.crop.with <- Reduce(terra::union, sapply(1:length(prepared.data), function(j) { terra::unwrap(prepared.data[[j]][[3]]) }, simplify = FALSE))
+
+    ## Borders to plot is more difficult, since it can contain empty elements
+    valid_vectors <- sapply(1:length(prepared.data), function(j) {
+        sv <- terra::unwrap(prepared.data[[j]][[4]])
+        if (geomtype(sv) == "polygons") return(sv) else return(NULL)
+    }, simplify = FALSE)
+
+    ## Remove NULLs
+    valid_vectors <- Filter(Negate(is.null), valid_vectors)
+
+    ## Ensure there's something left to union
+    if (length(valid_vectors) > 0) {
+        borders.to.plot <- Reduce(terra::union, valid_vectors)
+    } else {
+        borders.to.plot <- NULL  # Or handle the empty case as needed
+    }
+    
+    cropped.raster <- terra::mask(raster.long.lat, borders.to.crop.with)
+
+    return(list(cropped.raster, borders.to.plot))
+
+}
+
+@
+
+Create data suitable for kriging exposure to IPV in Asia.
+
+<<exposure-asia-prepare>>=
+my.resolution = 10000
+asia.exposure.input.data <- foreach::foreach(set = list(india.et.al, philippines, cambodia),
+        .options.future = list(scheduling = TRUE,
+                               seed = TRUE,
+                               packages = c("data.table", "globallivingconditions"))
+        ) %dofuture% generate.input.data.for.kriging.f(my.set = set, my.var = "viol01_cluster", my.clean.dt = viol01_cluster, my.cell.width = my.resolution, country.borders.to.ignore = c("India", "Cambodia", "Philippines"))
+@
+
+Calculate IPV exposure in Asia. (Serialise to make the results cacheable).
+
+<<asia-IPV-exposure-calc, dependson="kriging.full.pipeline">>=
+results <- kriging.full.pipeline.f(asia.exposure.input.data)
+serializable.raster <- terra::wrap(results[[1]])
+serializable.border <- terra::wrap(results[[2]])
+
+@
+
+Calculate sample size for Exposure in Asia
+
+<<n.stats>>=
+countries.codes.asia <- c("Andaman And Nicobar Islands", "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", "Chandigarh", "Chhattisgarh", "Goa", "Gujarat", "Haryana", "Himachal Pradesh", "Jammu And Kashmir", "Jharkhand", "Karnataka", "Kerala", "Lakshadweep", "Madhya Pradesh", "Maharashtra", "Manipur", "Meghalaya", "Mizoram", "Nagaland", "New Delhi", "Odisha", "Puducherry", "Punjab", "Rajasthan", "Sikkim", "Tamil Nadu", "Telangana", "Tripura", "Uttar Pradesh", "Uttarakhand", "West Bengal", "KHM", "PAK", "MMR", "NPL", "PHL", "BGD")
+n.persons.exposure.asia <- my.dt.clean[country %in% countries.codes.asia, length(which(is.na(viol01_wife) == FALSE)), ]
+n.local.areas.exposure.asia <- my.dt.clean[country %in% countries.codes.asia &
+  is.na(viol01_wife) == FALSE, length(unique(cluster1)), ]
+n.surveys.exposure.asia <- length(unique(sapply(strsplit(as.character(my.dt.clean$cluster1), ".", fixed = TRUE), function(x) { paste(x[c(1, 3)], collapse = ".") })))
+
+@ 
+
+Plot exposure to IPV in Asia.
+
+<<asia-IPV-exposure, fig.cap = paste0("Estimated proportion of women in the local area who have been exposed to violence by their current husband, Asia. Pakistan, India, Nepal, Myanmar, Cambodia and Philippines. Black contour lines at 0.25, 0.5 and 0.75. Country borders in darkgreen, and countries without data in gray. Number of women = ", n.persons.exposure.asia, ", number of local areas = ", n.local.areas.exposure.asia, ". Results from my own analysis based on data compiled from ", n.surveys.exposure.asia, " surveys funded by the DHS."), dependson = "asia-IPV-exposure-calc", fig.width = 9, fig.height = 5>>=
+my.palette.f <- grDevices::colorRampPalette(c("blue", "white", "red"))
+my.raster <- terra::clamp(unwrap(serializable.raster), lower=0, upper=1, values=TRUE)
+my.borders <- unwrap(serializable.border)
+terra::plot(my.raster, col = my.palette.f(101), range = c(0, 1), plg = list(at = seq(from = 0, to = 1, by = 0.1)), axes = TRUE, ylim = c(4, 38), xlim = c(60, 127))
+terra::contour(my.raster, add = TRUE, levels = c(0.25, 0.5, 0.75))
+plot(my.borders, add = TRUE, col = NA, border = "darkgreen", lwd = 2)
+## add adjacent countries with no data in gray
+## world$admin has names, but not proper names accoring to the iso.3166 standard,
+## eg "Laos" instead of "Lao People's Democratic Republic"
+## Therefore, use the numeric code in world$iso_n3_eh instead
+add.gray.countries <- c("Bangladesh", "Viet Nam", "Lao People's Democratic Republic", "Thailand")
+world <- rnaturalearth::ne_countries(scale = 50, returnclass = "sv")
+gray.countries <- world[as.numeric(world$iso_n3_eh) %in% iso.3166$numeric[match(add.gray.countries, iso.3166$String)], ]
+plot(gray.countries, col = "gray80", add = TRUE, border = "darkgreen", lwd = 0.5)
+
+@
+
+Repeat with attitudes to IPV.
+
+<<n.stats.attitudes.asia>>=
+n.persons.attitudes.asia <- my.dt.clean[country %in% countries.codes.asia, length(which(is.na(beat01_couple) == FALSE)), ]
+n.local.areas.attitudes.asia <- my.dt.clean[country %in% countries.codes.asia &
+  is.na(beat01_couple) == FALSE, length(unique(cluster1)), ]
+n.surveys.attitudes.asia <- length(unique(sapply(strsplit(as.character(my.dt.clean$cluster1), ".", fixed = TRUE), function(x) { paste(x[c(1, 3)], collapse = ".") })))
+
+@ 
+
+<<asia-IPV-attitudes-calc>>=
+asia.attitudes.input.data <- foreach::foreach(set = list(india.et.al, philippines, cambodia),
+        .options.future = list(scheduling = TRUE,
+                               seed = TRUE,
+                               packages = c("data.table", "globallivingconditions"))
+        ) %dofuture% generate.input.data.for.kriging.f(my.set = set, my.var = "justifyIPV_cluster", my.clean.dt = justifyIPV_cluster, my.cell.width = my.resolution, country.borders.to.ignore = c("India", "Cambodia", "Philippines"))
+results <- kriging.full.pipeline.f(asia.attitudes.input.data)
+serializable.raster <- terra::wrap(results[[1]])
+serializable.border <- terra::wrap(results[[2]])
+
+@
+
+<<asia-IPV-attitudes-plot, fig.cap = paste0("Estimated proportion of women in the local area who think IPV can be justified, Asia. Pakistan, India, Nepal, Myanmar, Cambodia and Philippines. Black contour lines at 0.25, 0.5 and 0.75. Country borders in darkgreen, and countries without data in gray. Number of women = ", n.persons.attitudes.asia, ", number of local areas = ", n.local.areas.attitudes.asia, ". Results from my own analysis based on data compiled from ", n.surveys.attitudes.asia, " surveys funded by the DHS."), fig.width = 9, fig.height = 5>>=
+my.raster <- terra::clamp(unwrap(serializable.raster), lower=0, upper=1, values=TRUE)
+my.borders <- unwrap(serializable.border)
+terra::plot(my.raster, col = my.palette.f(101), range = c(0, 1), plg = list(at = seq(from = 0, to = 1, by = 0.1)), axes = TRUE, ylim = c(4, 38), xlim = c(60, 127))
+terra::contour(my.raster, add = TRUE, levels = c(0.25, 0.5, 0.75))
+plot(my.borders, add = TRUE, col = NA, border = "darkgreen", lwd = 2)
+add.gray.countries <- c("Bangladesh", "Viet Nam", "Lao People's Democratic Republic", "Thailand")
+world <- rnaturalearth::ne_countries(scale = 50, returnclass = "sv")
+gray.countries <- world[as.numeric(world$iso_n3_eh) %in% iso.3166$numeric[match(add.gray.countries, iso.3166$String)], ]
+plot(gray.countries, col = "gray80", add = TRUE, border = "darkgreen", lwd = 0.5)
+
+@ 
+
+Repeat with African countries.
+
+<<africa-IPV-attitudes-calc>>=
+africa.attitudes.input.data <- foreach::foreach(set = list(Madagascar, Egypt, South.and.east, West),
+        .options.future = list(scheduling = TRUE,
+                               seed = TRUE,
+                               packages = c("data.table", "globallivingconditions"))
+        ) %dofuture% generate.input.data.for.kriging.f(my.set = set, my.var = "justifyIPV_cluster", my.clean.dt = justifyIPV_cluster, my.cell.width = my.resolution, country.borders.to.ignore = c("Egypt", "Madagascar"))
+results <- kriging.full.pipeline.f(africa.attitudes.input.data)
+serializable.raster <- terra::wrap(results[[1]])
+serializable.border <- terra::wrap(results[[2]])
+
+@
+
+<<africa-IPV-attitudes-plot, fig.cap = "Proportion women in the local area who thinks IPV can be justified, Africa. Contourlines in black at 0.25, 0.5 and 0.75.", fig.width = 5, fig.height = 9>>=
+my.raster <- terra::clamp(unwrap(serializable.raster), lower=0, upper=1, values=TRUE)
+my.borders <- unwrap(serializable.border)
+terra::plot(my.raster, col = my.palette.f(101), range = c(0, 1), plg = list(at = seq(from = 0, to = 1, by = 0.1)), axes = TRUE)
+terra::contour(my.raster, add = TRUE, levels = c(0.25, 0.5, 0.75))
+plot(my.borders, add = TRUE, col = NA, border = "darkgreen", lwd = 1)
+
+@ 
+
+<<africa-IPV-exposure-calc>>=
+africa.exposure.input.data <- foreach::foreach(set = list(Madagascar, Egypt, South.and.east, West),
+        .options.future = list(scheduling = TRUE,
+                               seed = TRUE,
+                               packages = c("data.table", "globallivingconditions"))
+        ) %dofuture% generate.input.data.for.kriging.f(my.set = set, my.var = "viol01_cluster", my.clean.dt = viol01_cluster, my.cell.width = my.resolution, country.borders.to.ignore = c("Egypt", "Madagascar"))
+results <- kriging.full.pipeline.f(africa.exposure.input.data)
+serializable.raster <- terra::wrap(results[[1]])
+serializable.border <- terra::wrap(results[[2]])
+
+@
+
+<<africa-IPV-exposure-plot, fig.cap = "Proportion women in the local area who have exposed to violence by their current husband, Africa. Contourlines in black at 0.25, 0.5 and 0.75.", fig.width = 5, fig.height = 9>>=
+my.raster <- terra::clamp(unwrap(serializable.raster), lower=0, upper=1, values=TRUE)
+my.borders <- unwrap(serializable.border)
+terra::plot(my.raster, col = my.palette.f(101), range = c(0, 1), plg = list(at = seq(from = 0, to = 1, by = 0.1)), axes = TRUE)
+terra::contour(my.raster, add = TRUE, levels = c(0.25, 0.5, 0.75))
+plot(my.borders, add = TRUE, col = NA, border = "darkgreen", lwd = 1)
+
+@ 
+
+\newpage
+
+\section{Regression with IPV as outcome}
+\label{sec:regression-with-ipv}
+
+Start python.
+
+<<python.avoid.startup.bug, echo = FALSE>>=
+reticulate::use_python(path.to.python, required = TRUE)
+reticulate::py_run_string("import pymc as mc")
+@ 
+
+<<python.1, engine='python', engine.path = path.to.python, echo = TRUE, results = "markup", eval = FALSE>>=
+import pandas as pd
+import pymc as pm
+import pymc.sampling.jax
+import numpy as np
+import pickle
+import random
+random.seed(9)
+
+import os
+os.environ["XLA_PYTHON_CLIENT_ALLOCATOR"] = "platform"
+
+import jax
+jax.default_backend()
+@ 
+
+\bibliographystyle{apacite}
+\bibliography{references}
+
+\end{document}
