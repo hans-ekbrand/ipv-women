@@ -642,7 +642,6 @@ my.raster <- terra::clamp(unwrap(serializable.raster), lower=0, upper=1, values=
 my.borders <- unwrap(serializable.border)
 terra::plot(my.raster, col = my.palette.f(101), range = c(0, 1), plg = list(at = seq(from = 0, to = 1, by = 0.1)), axes = TRUE, ylim = c(4, 38), xlim = c(60, 127))
 ## terra::contour(my.raster, add = TRUE, levels = c(0.25, 0.5, 0.75))
-## terra::contour(my.raster, add = TRUE, levels = c(0.25, 0.5, 0.75))
 plot(my.borders, add = TRUE, col = NA, border = "darkgreen", lwd = 2)
 
 ## add adjacent countries with no data in gray
@@ -682,7 +681,7 @@ serializable.border <- terra::wrap(results[[2]])
 my.raster <- terra::clamp(unwrap(serializable.raster), lower=0, upper=1, values=TRUE)
 my.borders <- unwrap(serializable.border)
 terra::plot(my.raster, col = my.palette.f(101), range = c(0, 1), plg = list(at = seq(from = 0, to = 1, by = 0.1)), axes = TRUE, ylim = c(4, 38), xlim = c(60, 127))
-terra::contour(my.raster, add = TRUE, levels = c(0.25, 0.5, 0.75))
+## terra::contour(my.raster, add = TRUE, levels = c(0.25, 0.5, 0.75))
 plot(my.borders, add = TRUE, col = NA, border = "darkgreen", lwd = 2)
 add.gray.countries <- c("Bangladesh", "Viet Nam", "Lao People's Democratic Republic", "Thailand")
 world <- rnaturalearth::ne_countries(scale = 50, returnclass = "sv")
@@ -709,7 +708,7 @@ serializable.border <- terra::wrap(results[[2]])
 my.raster <- terra::clamp(unwrap(serializable.raster), lower=0, upper=1, values=TRUE)
 my.borders <- unwrap(serializable.border)
 terra::plot(my.raster, col = my.palette.f(101), range = c(0, 1), plg = list(at = seq(from = 0, to = 1, by = 0.1)), axes = TRUE)
-terra::contour(my.raster, add = TRUE, levels = c(0.25, 0.5, 0.75))
+## terra::contour(my.raster, add = TRUE, levels = c(0.25, 0.5, 0.75))
 plot(my.borders, add = TRUE, col = NA, border = "darkgreen", lwd = 1)
 
 @ 
@@ -730,7 +729,7 @@ serializable.border <- terra::wrap(results[[2]])
 my.raster <- terra::clamp(unwrap(serializable.raster), lower=0, upper=1, values=TRUE)
 my.borders <- unwrap(serializable.border)
 terra::plot(my.raster, col = my.palette.f(101), range = c(0, 1), plg = list(at = seq(from = 0, to = 1, by = 0.1)), axes = TRUE)
-terra::contour(my.raster, add = TRUE, levels = c(0.25, 0.5, 0.75))
+## terra::contour(my.raster, add = TRUE, levels = c(0.25, 0.5, 0.75))
 plot(my.borders, add = TRUE, col = NA, border = "darkgreen", lwd = 1)
 
 @ 
