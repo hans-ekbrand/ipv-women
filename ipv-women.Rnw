@@ -64,6 +64,16 @@ for(package in required.packages){
 }
 @
 
+On the python side the following libraries are used:
+numpy
+pandas
+pickle
+random
+os
+jax
+pymc
+arviz
+
 \section{Prepare data}
 Download and standardize data with the R package «globallivingconditions«. Construct the variables «woman.exposed.to.IPV«, «woman.thinks.IPV.can.be.justified« and «man.thinks.\-IPV.can.be.justified«. Based on «woman.thinks.IPV.can.be.justified« and the sampling structure, create «justifyIPV\_cluster«. In a similar vein, construct the variable «viol01\_cluster« based on «woman.exposed.to.IPV«.
 
@@ -766,12 +776,12 @@ Calculate sample sizes for exposure to IPV in Africa.
 countries.codes.africa <- iso.3166$String.code[match(c(Madagascar, Egypt,
                                  West, South.and.east), iso.3166$String)]
 n.persons.exposure.africa <- my.dt.clean[country %in% countries.codes.africa,
-                               length(which(is.na(viol01_couple) == FALSE)), ]
+                               length(which(is.na(viol01_wife) == FALSE)), ]
 n.local.areas.exposure.africa <- my.dt.clean[country %in% countries.codes.africa
-  & is.na(viol01_couple) == FALSE, length(unique(cluster1)), ]
+  & is.na(viol01_wife) == FALSE, length(unique(cluster1)), ]
 n.surveys.exposure.africa <- length(unique(sapply(strsplit(as.character(
     my.dt.clean[country %in% countries.codes.africa &
-                is.na(viol01_couple) == FALSE, cluster1]),
+                is.na(viol01_wife) == FALSE, cluster1]),
     ".", fixed = TRUE), function(x) { paste(x[c(1, 3)], collapse = ".") })))
 @ 
 
@@ -791,7 +801,7 @@ serializable.border <- terra::wrap(results[[2]])
 
 Plot exposure to IPV in Africa.
 
-<<africa-IPV-exposure-plot, fig.cap = paste0("Proportion women in the local area who have exposed to violence by their current husband, Africa. Country borders in darkgreen, and countries without data in gray. Number of women = ", n.persons.attitudes.africa, ", number of local areas = ", n.local.areas.attitudes.africa, ". Kriging performed on data compiled from ", n.surveys.attitudes.africa, " surveys funded by the DHS."), fig.width = 5, fig.height = 9, fig.align = "center">>=
+<<africa-IPV-exposure-plot, fig.cap = paste0("Proportion women in the local area who have exposed to violence by their current husband, Africa. Country borders in darkgreen, and countries without data in gray. Number of women = ", n.persons.exposure.africa, ", number of local areas = ", n.local.areas.exposure.africa, ". Kriging performed on data compiled from ", n.surveys.exposure.africa, " surveys funded by the DHS."), fig.width = 5, fig.height = 9, fig.align = "center">>=
 my.raster <- terra::clamp(terra::unwrap(serializable.raster), lower=0, upper=1, values=TRUE)
 my.borders <- terra::unwrap(serializable.border)
 
