@@ -555,8 +555,9 @@ kriging.full.pipeline.f <- function(prepared.data, resolution = my.resolution * 
     library(data.table); library(sf)
 
     my.raster <- lapply(1:length(prepared.data), function(j) {
-        my.fit <- autoFRK::autoFRK(Data = prepared.data[[j]][[1]][[1]], loc = sf::st_coordinates(prepared.data[[j]][[1]]))
-        my.predictions <- predict(my.fit, newloc = prepared.data[[j]][[2]], maxK = regularisation.factor * sqrt(length(prepared.data[[j]][[1]][[1]])))
+        my.fit <- autoFRK::autoFRK(Data = prepared.data[[j]][[1]][[1]], loc = sf::st_coordinates(prepared.data[[j]][[1]]), 
+                                                maxK = regularisation.factor * sqrt(length(prepared.data[[j]][[1]][[1]])))
+        my.predictions <- predict(my.fit, newloc = prepared.data[[j]][[2]])
         kriging.results <- my.predictions$pred.value[, 1]
 
         ## Convert new locations to an sf object points collection
@@ -720,7 +721,7 @@ africa.attitudes.input.data <- foreach::foreach(set = list(Madagascar, Egypt, So
                                seed = TRUE,
                                packages = c("data.table", "globallivingconditions"))
         ) %dofuture% generate.input.data.for.kriging.f(my.set = set, my.var = "justifyIPV_cluster", my.clean.dt = justifyIPV_cluster, my.cell.width = my.resolution, country.borders.to.ignore = c("Egypt", "Madagascar"))
-results <- kriging.full.pipeline.f(africa.attitudes.input.data, regularisation.factor = 0.1)
+results <- kriging.full.pipeline.f(africa.attitudes.input.data, regularisation.factor = 0.01)
 serializable.raster <- terra::wrap(results[[1]])
 serializable.border <- terra::wrap(results[[2]])
 
