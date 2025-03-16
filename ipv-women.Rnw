@@ -400,7 +400,7 @@ We have made two versions of these maps: one version uses only the latest measur
 
 The bounding polygon for the Kriging process is created by merging the borders of all adjacent countries (in case of islands and or other disconnected areas, the country border is used directly). When preprocessing of the data we use the «R« packages «sp« and «raster«. The Kriging is done by \href{https://cran.r-project.org/web/packages/autoFRK/index.html}{«autoFRK«}, a package that implements a special version of Kriging that can work with massive amounts of datapoints \cite{Tzeng03042018}. The analyses are reproducible from scratch by the scripts we provide in the source code for this document.
 
-\section{Prepare input data for Kriging}
+\subsection{Prepare input data for Kriging}
 
 The respondents live in disconnected parts of the world, and we can assume that disconnected areas can be processed separately, ie that we do not lose valueable information by running separate analyses for Africa and South east Asia, or even by running a separate analysis on islands as Madagascar and the Philippines, or even other disconnected areas. Some countries are disconnected because there is no data for their neighbouring countries, e.g. Egypt and Cambodia.
 
@@ -829,7 +829,9 @@ reticulate::use_python(path.to.python, required = TRUE)
 reticulate::py_run_string("import pymc as mc")
 @ 
 
-<<python.1, engine='python', engine.path = path.to.python, echo = TRUE, results = "markup", eval = FALSE>>=
+Import python modules.
+
+<<python.1, engine='python', engine.path = path.to.python, echo = TRUE, results = "markup">>=
 import pandas as pd
 import pymc as pm
 import pymc.sampling.jax
@@ -843,7 +845,560 @@ os.environ["XLA_PYTHON_CLIENT_ALLOCATOR"] = "platform"
 
 import jax
 jax.default_backend()
+@
+
+Load the data from a «CSV«-file. % Prepare a slice to print since actual printing works better in R.
+
+<<python.2.load.data, engine='python', warnings = TRUE, results = 'markup', cache = FALSE>>=
+df = pd.read_csv("ipv-women2.csv", low_memory=False)
+@
+
+\subsection{Data preparation for pymc}
+\label{sec:data-prep-pymc}
+
+Create an index starting from zero for each random term, the model will include a random intercept for «country« and for «cluster1«, and save the labels. Here the function «factorize()« from «pandas« is used.
+
+<<spline-data.preparation.random.effects, engine='python', results = 'markup', cache = FALSE>>=
+country_index, country_name = df["country"].factorize()
+df["country_data"] = df["country"].astype("category").cat.codes
+
+cluster_index, cluster_name = df["cluster1"].factorize()
+df["cluster_id_unique_data"] = df["cluster1"].astype("category").cat.codes
+@
+
+\subsection{Apply dummy coding for the fixed effects}
+\label{sec:apply-dummy-coding}
+
+The «pandas« library in «python« has a function to create dummy variables, «get\_dummies()«. The argument «drop\_first=False« keeps the original columns, which often makes sense since otherwise the first value that happens to appear becomes the reference category. While the choice of reference category is generally not so important, in general make sure to choose a category that do not suffer from complete separation in an interaction term, since that makes the model fitting unnecessary hard. In this particular case, complete separation is not a concern.
+
+<<spline-data.preparation.dummy.variables, engine='python', results = 'markup', cache = FALSE>>=
+## ## Iliterate_couple is not yet available
+## dummy_vars = ["beat01_couple", "decide2_health", "decide2_purchases", "edudeviation", "v149", "iliterate_couple"]
+
+# List of specific categorical variables to convert to dummies
+dummy_vars = ["beat01_couple", "decide2_health", "decide2_purchases", "edudeviation", "v149"]
+
+# Create dummy variables only for the specified columns
+df = pd.get_dummies(df, columns=dummy_vars, prefix=dummy_vars, drop_first=False)
+@
+\section{Create the splines}
+For this analysis we use «justifyIPV\_cluster« which captures how large proportion of the other women in the neighbourhood thinks that IPV can be legitimate, as the basis for the splines.
+
+If there are missing values in the dataset, drop rows with «NA« in at least one column.
+
+<<spline-data.preparation.drop.na, engine='python', results = 'markup', cache = FALSE>>=
+df = df.dropna().reset_index(drop=True)
+@
+
+Sort the rows based on «justifyIPV\_cluster«. This is needed because the code that produces the matrix «B« relies on «df« being in that order. We also need to reset the row names, or they will be used when we later concatenate the two objects into one with «pd.concat()«
+
+<<spline-data.preparation.sort, engine='python', results = 'markup', cache = FALSE>>=
+df = df.sort_values(by='justifyIPV_cluster', ascending=False).reset_index(drop=True)
 @ 
+
+Construct the matrix «B«, and the data frame version of the same data, «spline\_df«. «B« will be used as a model matrix for some of the parameters of the model, while «spline\_df« is convenient to have when we inspect the data visually. In the end, we want to replace «justifyIPV\_cluster« with a version of «B«, and for this purpose, «B\_df« is constructed.
+
+<<spline-data.preparation.spline, engine='python', results = 'markup', cache = FALSE>>=
+num_knots = 3
+knot_list = np.quantile(df.justifyIPV_cluster, np.linspace(0, 1, num_knots))
+@
+
+The splines is generated by the function \href{https://patsy.readthedocs.io/en/latest/spline-regression.html}{«bs()«}, which is part of the «patsy« library.
+
+<<spline-data-preparation-create-B, engine='python', results = 'markup', cache = FALSE>>=
+B = dmatrix(
+    "bs(justifyIPV_cluster, knots=knots, degree=3, include_intercept=False) - 1",
+    {"justifyIPV_cluster": df.justifyIPV_cluster.values, "knots": knot_list[1:-1]},
+    )
+@ 
+
+Figure \vref{fig:spline-data-preparation-inspect-spline} shows how a given value on «justifyIPV\_cluster« maps to a specific set of weights, without the spline intercept.
+
+<<spline-data-preparation-inspect-spline, engine='python', echo = FALSE, results = 'markup', cache = TRUE, dev = "png", fig.cap = "For a given value on justifyIPV\\_cluster, the values of the curves indicate the weight of each parameter.">>=
+spline_df = (
+    pd.DataFrame(B)
+    .assign(justifyIPV_cluster=df.justifyIPV_cluster.values)
+    .melt("justifyIPV_cluster", var_name="spline_i", value_name="value")
+)
+color = plt.cm.magma(np.linspace(0, 0.80, len(spline_df.spline_i.unique())))
+fig = plt.figure()
+for i, c in enumerate(color):
+    subset = spline_df.query(f"spline_i == {i}")
+    subset.plot("justifyIPV_cluster", "value", c=c, ax=plt.gca(), label=i)
+plt.legend(title="Spline Index", loc="upper center", fontsize=8, ncol=6);
+@
+
+<<spline-data.preparation.create.B_df, engine='python', results = 'markup', cache = FALSE>>=
+B_df = pd.DataFrame(B, columns=[f"spline, {i}" for i in range(B.shape[1])])
+@
+
+In the final model, «B\_df« will replace «justifyIPV\_cluster«, and while it would be possible to refer to them as they are, it is \emph{convenient} to have single unified data object, especially as we want to predict using R later on. Such a unified data frame is aquired by concatenating «df« and «B\_df«.
+
+<<spline-data.preparation.concatenate.B.and.df, engine='python', results = 'markup', cache = FALSE>>=
+df = pd.concat([df, B_df], axis=1)
+@
+
+With that in place we can inspect how a given value of «justifyIPV\_cluster« translates to values on the new columns (named ``spline, 0''  to ``spline, 2''), see table \vref{tab:splines}. To produce this slice, only the rows in «df« with unique values on «justifyIPV\_cluster« was kept.
+
+<<spline-create-new-slice, engine='python', cache = FALSE, echo = TRUE, results = "markup">>=
+unique_rows = df.drop_duplicates(subset='justifyIPV_cluster').head(6)
+my_tab_2 = unique_rows.iloc[:5, np.hstack((5, range(len(unique_rows.columns)-(num_knots + 1), len(unique_rows.columns))))]
+@
+
+<<spline-print.sorted.table, results='asis', echo = FALSE, cache = TRUE>>=
+library(xtable)
+print(xtable(py$my_tab_2, caption = "justifyIPV\\_cluster and some of the columns that will replace it in the model. These rows represents the right most part of figure \\vref{fig:spline-data-preparation-inspect-spline}; at 0.98 the last curve is at value 0.5927 and the second curve is at value 0.3720.", digits = 4, label = "tab:splines"), booktabs = TRUE)
+@
+
+\section{Create the model}
+The splines are also ``just ordinary'' $\beta$-coefficients. There is one thing that goes beyond the standard model though, the interaction between «beat01\_couple« and «justifyIPV\_cluster«, and since the latter is substituted by the splines in the model, it is worth spelling out how that is done. Consider table \vref{tab:splines}, which shows the values of «justifyIPV\_cluster« and the splines. Let us define $x_{1}, x_{2} and x_{3}$ as spline 0, spline 1 and spline 2 respectively. The other variable in the interaction, «beat01\_couple«, is also substituted in the model, in this case to dummy variables representing ``Wife justifys IPV'', ``Husband justifys IPV'', ``Both justify IPV'', let us say $x_{4}, x_{5}$ and $x_{6}$. Ignoring the other variables in the model, the variables relevant for «beat01\_couple« and «justifyIPV\_cluster« could be classified into three parts:
+
+\begin{description}
+  \item[spline 0] ${x_1} \beta{1}$
+  \item[spline 1] ${x_2} \beta{2}$
+  \item[spline 2] ${x_3} \beta{3}$
+  \item[Wife justifys IPV] ${x_4} \beta{4}$
+  \item[Husband justifys IPV] ${x_5} \beta{5}$
+  \item[Both justify IPV] ${x_6} \beta{6}$
+  \item[spline 0, Wife justifys IPV] $x_{1} x_{4} \beta_{7}$
+  \item[spline 1, Wife justifys IPV] $x_{2} x_{4} \beta_{8}$
+  \item[spline 2, Wife justifys IPV] $x_{3} x_{4} \beta_{9}$
+    \item[spline 0, Husband justifys IPV] $x_{1} x_{5} \beta_{10}$
+  \item[spline 1, Husband justifys IPV] $x_{2} x_{5} \beta_{11}$
+  \item[spline 2, Husband justifys IPV] $x_{3} x_{5} \beta_{12}$    
+    \item[spline 0, Both justifys IPV] $x_{1} x_{6} \beta_{13}$
+  \item[spline 1, Both justifys IPV] $x_{2} x_{6} \beta_{14}$
+  \item[spline 2, Both justifys IPV] $x_{3} x_{6} \beta_{15}$    
+\end{description}
+
+  Note that the first three rows above, ("spline 0", "spline 1" and "spline 2") will characterise the effect of  «justifyIPV\_cluster« for the couples where "No one justifys IPV", ie the reference category. Similarly, row 4-6 capture the effect of the attitudes of the couple in the scenario where «justifyIPV\_cluster« is zero.
+
+Having this spelled out helps when we defining and naming the priors, however, since we have all the splines data in its own object «B«, we do not manually write down all these terms, we can just instruct «PYMC« to create all the possible combinations of spline and the dummy variables for «beat01\_couple«.
+
+Creating a model in «pymc« involves multiple steps:
+
+\begin{itemize}
+\item create the model object
+\item add \emph{priors} to the model object
+\item add \emph{data} to the model object
+\item add a formula that connects the observed outcome via a distribution to the predicted outcome, and produces a likelihood of the data, given the parameters - or rather, in more Bayesian terms, a posterior probability of the parameters, given the data.
+\end{itemize}
+
+For models with a large number of variables it is a good idea to deal with them in a systematic way, to make sure nothing is forgotten. Since the model is an object, which we can add parts to in separate steps, we do not need to do everything in one giant ``line'' of code, in fact we even add stuff to the model object in different chunks, making it more readable.
+
+Before actually creating the model object, below defined as «my\_model«, it is a good idea to give human readable names to the parameters of the dummy variables, the levels of the random effects and the splines (for the continuous variables, naming happens naturally when defining the priors.
+
+\subsection{Create the model object}
+
+<<spline-fit-model-1, engine = "python", results = "markup", cache = TRUE>>=
+coords={
+    "couple_attitude_dims" : ["Husband justifys IPV", "Wife justifys IPV", "Both justify IPV"],
+    "education_dims" : ["Incomplete primary", "Complete primary", "Incomplete secondary", "Complete_secondary", "Higher"],
+    "decide_health_dims" : ["Health - husband decides", "Health - wife decides", "Healt - joint decisions"],
+    "decide_purchase_dims" : ["Purchase - husband decides", "Purchase - wife decides", "Purchase - joint decisions"],
+    "edudeviation_dims" : ["Husband has higer edu.", "Wife has higher edu."],
+    "literate_couple_dims" : ["Husband iliterate", "Wife iliterate", "Both literate"],
+    "1|country_dims" : list(country_name),
+    "1|cluster_dims" : list(cluster_name),
+    "splines_dims": np.arange(B.shape[1])
+}
+my_model = pm.Model(coords=coords)
+@
+
+\subsection{Add priors to the model object}
+
+Now follows a large number of chunks that taken together define the \emph{priors}, the \emph{data} and the \emph{regression formula}. The priors and the data can be defined in any order. Here we start with the priors, and deal with them one type at a time.
+
+Define the priors, by choosing distribution (in closed form) with the relevant parameteters for each parameter, e.g. the normal distribution and its parameters $\mu$ and $\sigma$. When adding priors for the fixed effects factors, apply dummy coding, one scalar per term, shared sigmas for dummy variables with more than two levels. Start with the intercept.
+
+<<spline-fit-model-2, engine = "python", results = "markup", cache = TRUE>>=
+with my_model:
+    Intercept = pm.Normal("Intercept", mu=0, sigma=5)
+@
+
+Now add the three dummy variables, use the names defined in «coords« for «couple\_attitude\_dims«.
+
+<<spline-fit-model-3, engine = "python", results = "markup", cache = TRUE>>=
+with my_model:
+    couple_attitudes = pm.Normal("couple_attitudes", mu=0, sigma=1, dims = "couple_attitude_dims")
+@
+
+Priors for the splines, where we use information from B. First, set up parameters for how the splines affect couples in the reference category, ``No one justify IPV''. Note that at this point the user does not need to know how many splines there are, «size=B.shape[1]« creates as many priors as there are splines.
+
+<<spline-fit-model-6, engine = "python", results = "markup", cache = TRUE>>=
+with my_model:
+    spline = pm.Normal("spline", mu=0, sigma=3, size=B.shape[1], dims="splines_dim")
+@
+
+In addition, add parameters for the interaction between justifyIPV\_cluster, which is replaced by the splines in the model, and the other categories, ``Wife justifys IPV'', ``Husband justifys IPV'' and ``Both justify IPV''. This make for three separate sets of spline parametres, but since we have defined the coordinates of the model using the «coords« argument of «pymc.Model()«, we do not need to know that, we can just reference the named dimensions «couple\_attitude\_dims« and «splines\_dims«.
+
+<<spline-fit-model-6.5, engine = "python", results = "markup", cache = TRUE>>=
+with my_model:
+    interaction_terms = pm.Normal("interaction_terms", mu=0, sigma=1, dims = ["couple_attitude_dims", "splines_dims"])
+@
+
+With priors for the focal variables in place, here is the remaining fixed effects factors
+%%     literate_couple = pm.Normal("literate_couple", mu=0, sigma=1, dims = "literate_couple_dims")
+
+<<spline-fit-model-3.5, engine = "python", results = "markup", cache = TRUE>>=
+with my_model:
+    education = pm.Normal("education", mu=0, sigma=1, dims = "education_dims")
+    decide_health = pm.Normal("decide_health", mu=0, sigma=1, dims = "decide_health_dims")
+    decide_purchase = pm.Normal("decide_purchase", mu=0, sigma=1, dims = "decide_purchase_dims")
+    edudeviation = pm.Normal("edudeviation", mu=0, sigma=1, dims = "edudeviation_dims")
+@
+
+More fixed effects priors, now the continuous variables.
+
+<<spline-fit-model-4, engine = "python", results = "markup", cache = TRUE>>=
+with my_model:
+    iwi2 = pm.Normal("iwi2", mu=0, sigma=1)
+    lnage_wife = pm.Normal("lnage_wife", mu=0, sigma=5)
+    ln_numb_of_children = pm.Normal("ln_numb_of_children", mu=0, sigma=2)
+    gdi = pm.Normal("gdi", mu=0, sigma=2)
+    gni = pm.Normal("gni", mu=0, sigma=2)
+@
+
+Priors for the random effects. Every level will get its own dummy variable.
+
+<<spline-fit-model-5, engine = "python", results = "markup", cache = TRUE>>=
+with my_model:
+    random_intercept_country = pm.Normal("1|country", mu=0, sigma=pm.HalfNormal("1|country_sigma", sigma=2.5), dims = "1|country_dims")
+    random_intercept_cluster = pm.Normal("1|cluster", mu=0, sigma=pm.HalfNormal("1|cluster_sigma", sigma=2.5), dims = "1|cluster_dims")
+@
+
+Now that the priors are defined, inform pymc about where to find the data for the model matrix. Start with the random variables.
+
+<<spline-fit-model-7, engine = "python", results = "markup", cache = TRUE>>=
+with my_model:
+    Z_country = pm.ConstantData("Z_country", df["country_data"])
+    Z_cluster = pm.ConstantData("Z_cluster", df["cluster_id_unique_data"])
+@
+
+\subsection{Add data to the model object}
+And the data for the fixed effects, first the factors.
+
+%%     X_Wife_iliterate = pm.ConstantData("X_Wife_iliterate", df["_Wife iliterate"])
+    % X_Husband_iliterate = pm.ConstantData("X_Husband_iliterate", df["edudeviation_Husband iliterate"])
+    % X_Both_literate = pm.ConstantData("X_Both_literate", df["_Both literate"])
+
+<<spline-fit-model-8, engine = "python", results = "markup", cache = TRUE>>=
+with my_model:
+    X_Husband_justifys_IPV = pm.ConstantData("X_Husband_justifys_IPV", df["beat01_couple_Husband justifys IPV"])
+    X_Wife_justifys_IPV = pm.ConstantData("X_Wife_justifys_IPV", df["beat01_couple_Wife justifys IPV"])
+    X_Both_justifys_IPV = pm.ConstantData("X_Both_justifys_IPV", df["beat01_couple_Both justify IPV"])
+    X_Health_husband_decides = pm.ConstantData("X_Health_husband_decides", df["decide2_health_husband decides"])
+    X_Health_wife_decides = pm.ConstantData("X_Health_wife_decides", df["decide2_health_wife decides"])
+    X_Health_joint_decisions = pm.ConstantData("X_Health_joint_decisions", df["decide2_health_joint decisions"])
+    X_Purchases_husband_decides = pm.ConstantData("X_Purchases_husband_decides", df["decide2_purchases_husband decides"])
+    X_Purchases_wife_decides = pm.ConstantData("X_Purchases_wife_decides", df["decide2_purchases_wife decides"])
+    X_Purchases_joint_decisions = pm.ConstantData("X_Purchases_joint_decisions", df["decide2_purchases_joint decisions"])
+    X_Husband_higher_edu = pm.ConstantData("X_Husband_higher_edu", df["edudeviation_Husband has higher edu."])
+    X_Wife_higher_edu = pm.ConstantData("X_Wife_higher_edu", df["edudeviation_Wife has higher edu."])
+    X_incomplete_primary = pm.ConstantData("X_incomplete_primary", df["v149_Incomplete primary"])
+    X_complete_primary = pm.ConstantData("X_complete_primary", df["v149_Complete primary"])
+    X_incomplete_secondary = pm.ConstantData("X_incomplete_secondary", df["v149_Incomplete secondary"])
+    X_complete_secondary = pm.ConstantData("X_complete_secondary", df["v149_Complete secondary"])
+    X_higher = pm.ConstantData("X_higher", df["v149_Higher"])
+@
+
+Then the continuous variables, note that there is no reference to the focal variable «justifyIPV\_cluster«, instead we will use a version of «B«.
+
+%%     X_lnage_wife = pm.ConstantData("X_lnage_wife", df["lnage_wife"])
+
+
+<<spline-fit-model-9, engine = "python", results = "markup", cache = TRUE>>=
+with my_model:
+    X_iwi = pm.ConstantData("X_iwi", df["iwi2"])
+    X_ln_numb_of_children = pm.ConstantData("X_ln_numb_of_children", df["ln_numb_of_children"])
+    X_gdi = pm.ConstantData("X_gdi", df["gdi_s"])
+    X_gni = pm.ConstantData("X_gni", df["gni_s"])
+@
+
+\subsection{Formulate the regression equation}
+Next step is to add a formula that connects the observed outcome via a distribution to the data and the priors.
+
+%% TODO add
+      % X_Husband_iliterate * literate_couple[0] + \
+      % X_Wife_iliterate * literate_couple[1] + \
+      % X_Both_literate * literate_couple[2] + \
+      % X_lnage_wife * lnage_wife + \
+
+
+<<spline-fit-model-10, engine = "python", results = "markup", cache = TRUE>>=
+with my_model:
+    theta_as_logit = Intercept + \
+      X_Husband_justifys_IPV * couple_attitudes[0] + \
+      X_Wife_justifys_IPV * couple_attitudes[1] + \
+      X_Both_justifys_IPV * couple_attitudes[2] + \
+      X_Health_husband_decides * decide_health[0] + \
+      X_Health_wife_decides * decide_health[1] + \
+      X_Health_joint_decisions * decide_health[2] + \
+      X_Purchases_husband_decides * decide_purchase[0] + \
+      X_Purchases_wife_decides * decide_purchase[1] + \
+      X_Purchases_joint_decisions * decide_purchase[2] + \
+      X_Husband_higher_edu * edudeviation[0] + \
+      X_Wife_higher_edu * edudeviation[1] + \
+      X_incomplete_primary * education[0] + \
+      X_complete_primary * education[1] + \
+      X_incomplete_secondary * education[2] + \
+      X_complete_secondary * education[3] + \
+      X_higher * education[4] + \
+      X_iwi * iwi2 + \
+      X_ln_numb_of_children * ln_numb_of_children + \
+      X_gdi * gdi + \
+      X_gni * gni + \
+      random_intercept_country[Z_country] + \
+      random_intercept_cluster[Z_cluster] + \
+      pm.math.dot(np.asarray(B, order="F"), spline.T) + \
+      pm.math.dot(np.asarray(B, order="F"), interaction_terms[0].T) * X_Husband_justifys_IPV + \
+      pm.math.dot(np.asarray(B, order="F"), interaction_terms[1].T) * X_Wife_justifys_IPV + \
+      pm.math.dot(np.asarray(B, order="F"), interaction_terms[2].T) * X_Both_justifys_IPV
+@
+
+Make sure to use the correct data part (e.g. «X\_Husband\_justifys\_IPV«) together with the relevant named parameter «interaction\_terms[0]«, ie, make sure the zero-th index of the dimensions used in «interaction\_terms« (``Only husband justifys IPV'', see «couple\_attitude\_dims«) corresponds to the same level as the data part, or the resulting parameter estimates will turn up under the wrong name.
+
+\subsection{Choose a distribution for the outcome}
+Make it a logistic regression by tying the observed value to the model via the Bernoulli distribution.
+<<spline-fit-model-11, engine = "python", results = "markup", cache = TRUE>>=
+with my_model:
+    theta_as_probability = pm.invlogit(theta_as_logit)
+    y = pm.ConstantData("y", df["viol01_wife"] == True)
+    Y_obs = pm.Bernoulli("Y_obs", p=theta_as_probability, observed=y)
+@
+
+\subsection{Start sampling parameter values}
+I think that during the tuning process, the «NUTS« sampler rescale the dimensions of the parameter space, so that the risk of divergencies is reduced and an appropriate step size is calibrated.
+
+If you have a graphical processing unit (GPU) from «nvidia«, then install «jax« with gpu support. The code below will use the «numpyro\_nuts« sampler, which is built on top of «jax«, if «jax« is installed, and fall back to the native «pymc« «NUTS« sampler which uses CPU if «jax« is not installed. To be able to post process the parameter samples, these are saved  to disk with the function «dump()« in the library «pickle«. («batches=2« is my own invention, which reduces the RAM requirements on the GPU).
+
+% my_fit_pymc = pm.sample(random_seed=1234, tune=10, draws=40, target_accept=0.8, chains = 4, chain_method='parallel', cores=4, nuts_kwargs=dict(max_tree_depth=10), idata_kwargs=dict(log_likelihood=False), postprocessing_backend="cpu")
+
+% Seems like import pymc.sampling.jax works on system that does not have my custom version of pymc.
+
+<<spline-fit-model-12, engine = "python", results = "markup", eval = !file.exists("ipv-women2.pydata"), cache = TRUE>>=
+import pickle
+try:
+    import pymc.sampling_jax
+    with my_model:
+        my_fit_pymc = pm.sampling_jax.sample_numpyro_nuts(random_seed=1234, tune=100, draws=400, target_accept=0.8, chains = 4, chain_method='parallel', nuts_kwargs=dict(max_tree_depth=10), idata_kwargs=dict(log_likelihood=False), postprocessing_backend="cpu")
+except ImportError as e:
+    with my_model:
+        my_fit_pymc = pm.sample(random_seed=1234, tune=200, draws=400, target_accept=0.9, chains = 2, max_treedepth=10, idata_kwargs=dict(log_likelihood=False))
+pickle.dump(my_fit_pymc, open('ipv-women2.pydata', 'wb'))
+@
+
+\section{Evaluate the model fit}
+\label{sec:evaluate-model}
+
+Inspect the r-hat statistics, and the High Density Intervals for the fixed effects parameters, see table \vref{tab:convergence}.
+
+<<spline-evaluate-model-2, engine = "python", results = "markup", cache = TRUE, eval = !file.exists("spline-evaluate-model-3-summary.csv")>>=
+import pickle
+my_fit_pymc = pickle.load(open("ipv-women2.pydata", "rb"))
+import arviz
+summary_df = arviz.summary(my_fit_pymc, var_names=["~country", "~cluster"], filter_vars="like")[["hdi_3%", "hdi_97%","r_hat"]]
+summary_df.to_csv("spline-evaluate-model-3-summary.csv", index=True)
+@
+
+\begin{footnotesize}
+<<spline-pretty.print.convergence, results="asis", echo = FALSE>>=
+conv.tab <- read.csv("spline-evaluate-model-3-summary.csv")
+colnames(conv.tab) <- c("Parameter", "HDI_3%", "HDI_97%","r_hat")
+print(xtable(conv.tab, caption = "High Density Interval (HDI) and convergence statistics for fixed effect parameters.", label = "tab:convergence"), include.rownames = FALSE, booktabs = TRUE)
+@ 
+\end{footnotesize}
+
+Show a trace plot of «couple\_attitudes«, note that these parameters only describe the effect of the attitudes in question when «justifyIPV\_cluster« is at zero, and also note that the reference category is ``No one justifys IVP''. Since there is no legend, this graph is not very informative, but it indicates that the model had enough tuning (or ``burn-in'') since the early samples are at the same level as the last samples; and the large fluctuations between nearby samples indicate that the parameter space is searched thoroughly, see figure \vref{fig:spline-evaluate-model-5}.
+
+<<spline-evaluate-model-5, engine = "python", dev = "png", cache = TRUE, fig.cap = "Trace plot for the attitude of the couple.">>=
+arviz.plot_trace(my_fit_pymc, var_names = ["couple_attitudes"], compact = True)
+@
+
+\section{Export parameters needed for predictions}
+<<spline-export-params, engine = "python", results = "markup", cache = TRUE, eval = !file.exists("ipv-women-sampled-parameters.csv")>>=
+import arviz
+import pickle
+my_fit_pymc = pickle.load(open("ipv-women2.pydata", "rb"))
+df_results = my_fit_pymc.to_dataframe(groups = "posterior", include_index=False)
+df_results.drop(
+    columns=[col for col in df_results.columns if "|" in str(col) or col in {"chain", "draw"}], 
+    inplace=True
+)
+df_results.to_csv("ipv-women-sampled-parameters.csv", index=False)
+@
+
+Import both the sampled parameters and the ``model matrix'' and make a clean version of the model matrix that \emph{only} contains the data that corresponds to the columns in params, and is in the \emph{right order}. The column order in the set of sampled parameters is the same order as used then defining the priors in the model.
+
+\begin{itemize}
+\item Intercept
+\item couple\_attitudes
+\item spline
+\item interaction\_terms
+\item education
+\item decide\_health
+\item decide\_purchase
+\item edudeviation
+\item iwi2
+\item ln\_numb\_of\_children
+\item gdi
+\item gni
+\item random term cluster (ignore when predicting)
+\item random term country (ignore when predicting)
+\end{itemize}
+
+
+<<spline-clean.mm>>=
+ipv.mm <- read.csv("ipv-women-model_matrix.csv", check.names = FALSE)
+params <- read.csv("ipv-women-sampled-parameters.csv", check.names = FALSE)
+
+my.recodes <- "'True' = 1; 'False' = 0"
+attitudes <- c("beat01_couple_Both justify IPV", "beat01_couple_Husband justifys IPV", "beat01_couple_Wife justifys IPV")
+
+couple_attitudes <- cbind(sapply(c(attitudes), function(x) {
+    car::recode(ipv.mm[[x]], recodes = my.recodes)                            
+}, simplify = TRUE))
+
+## dynamically adjust to any number of splines
+splines.iterator <- 0:py$num_knots
+my.spline.names <- paste0("spline, ", splines.iterator)
+interaction_terms <- unlist(sapply(c(attitudes), function(attitude) {
+    sapply(my.spline.names, function(spline){
+        return(car::recode(ipv.mm[[attitude]], recodes = my.recodes) *
+            ipv.mm[[spline]])
+    }, simplify = FALSE)
+}, simplify = FALSE), recursive = FALSE)
+
+education <- cbind(sapply(c("v149_Complete primary", "v149_Complete secondary", "v149_Higher", "v149_Incomplete primary", "v149_Incomplete secondary"), function(educational.level){
+    car::recode(ipv.mm[[educational.level]], recodes = my.recodes)
+}))
+
+dummies <- cbind(sapply(c(
+    "decide2_health_joint decisions", "decide2_health_husband decides", "decide2_health_wife decides",
+    "decide2_purchases_husband decides", "decide2_purchases_joint decisions", "decide2_purchases_wife decides", 
+    "edudeviation_Husband has higher edu.", "edudeviation_Wife has higher edu."), function (dummy){
+        car::recode(ipv.mm[[dummy]], recodes = my.recodes)        
+    }))
+
+splines <- ipv.mm[my.spline.names]
+
+as.is <- ipv.mm[c("iwi2", "ln_numb_of_children", "gdi_s", "gni_s")]
+
+my.mm <- cbind(Intercept = rep(1, nrow(ipv.mm)), couple_attitudes, splines, interaction_terms, education, dummies, as.is)
+
+## get the sample means
+my.means <- apply(my.mm, 2, mean)
+
+params.matrix <- as.matrix(params)
+mean.matrix <- as.matrix(my.means)
+@
+
+Build the grid of values at which to generate predicted probabilities for each level of the factor variable that captures the attitudes of the couple. Even if splines have replaced the variable «justifyIPV\_cluster«, proceed as normal by finding relevant values on «justifyIPV\_cluster«, e.g. all non-extreme half-deciles, and for each interesting value on «justifyIPV\_cluster« find the corresponding set of values by extracting the values for the splines for cases that have the decile value on «justifyIPV\_cluster«. This is why «justifyIPV\_cluster« was retained in the model matrix even if it was not used when the model was fit to data.
+
+<<spline-find-interesting.points>>=
+quantiles <- quantile(ipv.mm$justifyIPV_cluster, probs = seq(from = 0,  to = 1, by = 0.01))
+## match() is not guaranteed to find all quantiles.
+these <- sapply(quantiles, function(x) { which.min(abs(ipv.mm$justifyIPV_cluster - x)) })
+interesting.points.temp <- ipv.mm[these, c("justifyIPV_cluster", my.spline.names)]
+keep.these <- which(duplicated(interesting.points.temp) == FALSE)
+interesting.points <- interesting.points.temp[keep.these, ]
+quantiles <- quantiles[keep.these]
+## interesting.points <- unique(ipv.mm[these, c("justifyIPV_cluster", my.spline.names)])
+## interesting.points <- ipv.mm[match(quantiles, ipv.mm$justifyIPV_cluster), c("justifyIPV_cluster", my.spline.names)]
+@
+
+<<spline-show-interesting.points, echo = FALSE, results="asis">>=
+print(xtable(interesting.points, label = "tab:half-deciles", caption = "The non extreme half-deciles of «justifyIPV\\_cluster« and the corresponding values on the splines."), include.rownames = FALSE, booktabs = TRUE)
+@
+
+Build one small model matrix for each level of the factor variable.
+\begin{itemize}
+\item Start with a copy of the mean matrix, replicated as many times as there are rows in the  object «quantiles«.
+\item Copy the splines data from the object «interesting.points«.
+\item Set all dummies to 0.
+\item Loop over the possible values on the factor variable, including the reference category  
+  \begin{itemize}
+  \item Change the dummy for the current level to 1.
+  \item Create the data for the interaction by multiplying the dummies and the splines data.
+  \end{itemize}
+\end{itemize}
+
+<<spline-mm-to-predict-for>>=
+mm.by.attitude.f <- function(this.attitude){
+    ## Duplicate the mean matrix
+    mean.matrix.replicated <- do.call(rbind, replicate(length(quantiles), t(mean.matrix), simplify = FALSE))
+    ## Copy the values of splines
+    mean.matrix.replicated[, my.spline.names] <- as.matrix(interesting.points[, my.spline.names])
+    ## Set the dummies of the focal variable to 0 or 1
+    for(dummy.var in attitudes){
+        if(dummy.var == this.attitude){
+            mean.matrix.replicated[, dummy.var] <- rep(1, length(quantiles))
+        } else {
+            mean.matrix.replicated[, dummy.var] <- rep(0, length(quantiles))
+        }
+    }
+    ## Interaction terms
+    interaction_terms <- unlist(sapply(c(attitudes), function(attitude) {
+        sapply(my.spline.names, function(spline){
+            return(mean.matrix.replicated[, attitude] * mean.matrix.replicated[, spline])
+        }, simplify = FALSE)
+    }, simplify = FALSE), recursive = FALSE)
+    ## overwrite values in mean.matrix.replicated with the newly calculated values
+    for(interaction.term in names(interaction_terms)){
+        mean.matrix.replicated[, interaction.term] <- interaction_terms[[interaction.term]]
+    }
+    return(mean.matrix.replicated)
+}
+mms <- sapply(c("None justifys IPV", attitudes), mm.by.attitude.f, simplify = FALSE)
+@
+
+Generate the predicted probabilities.
+
+<<spline-predict>>=
+my.probs <- c(0.025, 0.5, 0.975)
+results <- sapply(mms, function(my.mm){
+    apply(plogis(params.matrix %*% t(my.mm)), 2, quantile, probs = my.probs)
+}, simplify = FALSE)
+@
+
+Plot the predicted probabilities.
+
+<<spline-plot-predictions, fig.cap = "Predicted probabilities for a woman to be exposed to IPV conditioned on the attitudes in the couple and the attitudes of the other women in the local area.", fig.width = 6, fig.align = "center">>=
+par(mar = c(4, 5, 5, 13))
+plot(y = results[["None justifys IPV"]]["50%",],
+     x = interesting.points[["justifyIPV_cluster"]],
+     xlab = "Neighbourhood justification of IPV",
+     ylab = "Probability of IPV",
+     type = "l", col = "red", ylim = c(min(unlist(results)), max(unlist(results))),
+     lwd = 3)
+grid()
+my.cols <- c("red", "darkgreen", "lightgreen", "orange")
+my.alpha.cols <- sapply(my.cols, transparent, alpha = 0.6)
+my.names <- c("None justifys IPV", attitudes)
+for(i in 1:length(my.names)){
+    polygon(y = c(results[[my.names[i]]]["2.5%",], rev(results[[my.names[i]]]["97.5%",])),
+            x = c(interesting.points[["justifyIPV_cluster"]], rev(interesting.points[["justifyIPV_cluster"]])), col = my.alpha.cols[i], border = NA)
+    lines(y = results[[my.names[i]]]["50%",],
+          x = interesting.points[["justifyIPV_cluster"]],
+          col = my.cols[i], lwd = 3, lty = 1)
+}
+
+legend("right",
+       title = "Justifications in the couple",
+       legend = c("No one justifies IPV", "Husband justifies IPV", 
+                  "Wife justifies IPV", "Wife & husband justify IPV"), 
+       col = c("red", "lightgreen", "orange", "darkgreen"), 
+       lwd = 3, 
+       lty = 1, 
+       bty = "n", 
+       ncol = 1,
+       inset = c(-1.1, 0),
+       xpd = TRUE
+)
+
+@
+
+
 
 \bibliographystyle{apacite}
 \bibliography{references}
