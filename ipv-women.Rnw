@@ -64,15 +64,7 @@ for(package in required.packages){
 }
 @
 
-On the python side the following libraries are used:
-numpy
-pandas
-pickle
-random
-os
-jax
-pymc
-arviz
+The following libraries are required: numpy, pandas, pickle, random, os, jax, pymc, arviz.
 
 \section{Prepare data}
 Download and standardize data with the R package «globallivingconditions«. Construct the variables «woman.exposed.to.IPV«, «woman.thinks.IPV.can.be.justified« and «man.thinks.\-IPV.can.be.justified«. Based on «woman.thinks.IPV.can.be.justified« and the sampling structure, create «justifyIPV\_cluster«. In a similar vein, construct the variable «viol01\_cluster« based on «woman.exposed.to.IPV«.
@@ -625,10 +617,10 @@ asia.exposure.input.data <- foreach::foreach(set = list(india.et.al, philippines
         ) %dofuture% generate.input.data.for.kriging.f(my.set = set, my.var = "viol01_cluster", my.clean.dt = viol01_cluster, my.cell.width = my.resolution, country.borders.to.ignore = c("India", "Cambodia", "Philippines"))
 @
 
-Calculate IPV exposure in Asia. (Serialise to make the results cacheable).
+Calculate IPV exposure in Asia. Serialise to make the results cacheable. (Raster objects consist of pointers to objects store on disk, these pointers are locally defined and become invalid when the function returns. To avoid this, the function «wrap()« makes a full copy of the raster object to RAM. When these objects are later used, «unwrap()« has to be applied to make them ordinary raster objects again. Together «wrap()« and «unwrap()« are essential whenever a function is returning raster objects or when working with «knitr« which caches the results of chunks to avoid having to redo the computations every time the source is compiled to a \LaTeX document).
 
 <<asia-IPV-exposure-calc, dependson="kriging.full.pipeline">>=
-results <- kriging.full.pipeline.f(asia.exposure.input.data, regularisation.factor = 1))
+results <- kriging.full.pipeline.f(asia.exposure.input.data, regularisation.factor = 1)
 serializable.raster <- terra::wrap(results[[1]])
 serializable.border <- terra::wrap(results[[2]])
 
@@ -701,7 +693,7 @@ asia.attitudes.input.data <- foreach::foreach(set = list(india.et.al, philippine
                                seed = TRUE,
                                packages = c("data.table", "globallivingconditions"))
         ) %dofuture% generate.input.data.for.kriging.f(my.set = set, my.var = "justifyIPV_cluster", my.clean.dt = justifyIPV_cluster, my.cell.width = my.resolution, country.borders.to.ignore = c("India", "Cambodia", "Philippines"))
-results <- kriging.full.pipeline.f(asia.attitudes.input.data, regularisation.factor = 0.5))
+results <- kriging.full.pipeline.f(asia.attitudes.input.data, regularisation.factor = 0.5)
 serializable.raster <- terra::wrap(results[[1]])
 serializable.border <- terra::wrap(results[[2]])
 
