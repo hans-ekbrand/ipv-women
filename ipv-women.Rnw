@@ -64,7 +64,7 @@ for(package in required.packages){
 }
 @
 
-The following libraries are required: numpy, pandas, pickle, random, os, jax, pymc, arviz.
+The following libraries are required: numpy, pandas, pickle, random, os, jax, pymc, arviz, patsy.
 
 \section{Prepare data}
 Download and standardize data with the R package «globallivingconditions«. Construct the variables «woman.exposed.to.IPV«, «woman.thinks.IPV.can.be.justified« and «man.thinks.\-IPV.can.be.justified«. Based on «woman.thinks.IPV.can.be.justified« and the sampling structure, create «justifyIPV\_cluster«. In a similar vein, construct the variable «viol01\_cluster« based on «woman.exposed.to.IPV«.
@@ -837,6 +837,7 @@ import pymc as pm
 import pymc.sampling.jax
 import numpy as np
 import pickle
+from patsy import dmatrix
 import random
 random.seed(9)
 
