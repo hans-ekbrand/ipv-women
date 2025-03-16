@@ -720,7 +720,7 @@ africa.attitudes.input.data <- foreach::foreach(set = list(Madagascar, Egypt, So
                                seed = TRUE,
                                packages = c("data.table", "globallivingconditions"))
         ) %dofuture% generate.input.data.for.kriging.f(my.set = set, my.var = "justifyIPV_cluster", my.clean.dt = justifyIPV_cluster, my.cell.width = my.resolution, country.borders.to.ignore = c("Egypt", "Madagascar"))
-results <- kriging.full.pipeline.f(africa.attitudes.input.data, regularisation.factor = 0.5)
+results <- kriging.full.pipeline.f(africa.attitudes.input.data, regularisation.factor = 0.1)
 serializable.raster <- terra::wrap(results[[1]])
 serializable.border <- terra::wrap(results[[2]])
 
