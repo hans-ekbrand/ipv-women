@@ -546,7 +546,9 @@ doFuture::registerDoFuture()
 
 @
 
-A function that process all adjacent countries simultaneously, and aligns and merges the results to a single raster. The slighly higher resolution used here is to avoid artifacts (undefined vertical stripes) when the different raster are aligned to a single origin. The regularisation.factor argument provides a way for the user to choose how strong regularisation to use. The default in autoFRK is to use $ 10 \sqrt{n} $. A higher value gives the kriging algorithm more freedom to care for local deviances, resulting in a more detailed map, while a lower value forces the kriging to make a smoother surface, or, in other words, to keep only the most important trends in the data. Too high values risk overfitting, while too low values gives a too simplified result. Given that the number of respondents per site is on average rather low, we have choosen to use a stronger regularisation than the default of «autoFRK«: 1 for the exposure to IPV and 0.5 for the attitude towards IPV.
+A function that process all adjacent countries simultaneously, and aligns and merges the results to a single raster. The slighly higher resolution used here is to avoid artifacts (undefined vertical stripes) when the different raster are aligned to a single origin.
+
+The «regularisation.factor« argument provides a way for the user to choose how strong regularisation to use. The default in «autoFRK()« is to use $ 10 \sqrt{n} $. A higher value gives the kriging algorithm more freedom to care for local deviances, resulting in a more detailed map, while a lower value forces the kriging to make a smoother surface, or, in other words, to keep only the most important trends in the data. Too high values risk overfitting, while too low values gives a too simplified result. Given that the number of respondents per site typically is rather low, we have choosen to use a stronger regularisation than the default of «autoFRK()« - we use $ \sqrt{n} $ as «maxK«, the maximum number of basis functions considered.
 
 
 <<kriging.full.pipeline>>=
