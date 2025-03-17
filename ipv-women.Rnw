@@ -123,6 +123,15 @@ load("~/user_credentials_dhs.RData") # a list with two named elements:
 my.dt <- download.and.harmonise(
     dhs.user=credentials$dhs.user,
     dhs.password=credentials$dhs.password,
+    waves = list("Afghanistan" = "71", "Angola" = "71", "Armenia" = "72", "Bangladesh" = "81", "Benin" = "71", "Burkina Faso" = "81", "Burundi" = "71", "Cambodia" = "82",
+                 "Cameroon" = "71", "Chad" = "71", "Colombia" = c("71", "72"), "Congo" = "61", "Congo Democratic Republic" = "61", "Cote d'Ivoire" = "81",
+                 "Dominican Republic" = "61", "Egypt" = "61", "Ethiopia" = "71", "Haiti" = "71", "Gabon" = "71",
+                 "Gambia" = "81", "Ghana" = "8C", "Guatemala" = "71", "Guinea" = "71", "India" = c("74", "7E"),
+                 "Jordan" = "81", "Kenya" = "8C", "Lesotho" = "81", "Liberia" = "7A", "Madagascar" = "81", "Maldives" = "71", "Malawi" = "7A", 
+                 "Mali" = "7A", "Mauritania" = "71", "Mozambique" = "81", "Myanmar" = "71", "Namibia" = "61", "Nepal" = "82",
+                 "Nigeria" = "7B", "Pakistan" = "71", "Papua New Guinea" = "71", "Philippines" = "82", "Rwanda" = "81", "Senegal" = "8B",
+                 "Sierra Leone" = "7A", "South Africa" = "71", "Tajikistan" = "72", "Tanzania" = "82", "Timor-Leste" = "71", "Togo" = "61",
+                 "Turkey" = "71", "Uganda" = "7B", "Zambia" = "71", "Zimbabwe" = "72"),
     vars.to.keep = NULL,
     file.types.to.download = c("PR", "GE", "IR", "MR", "KR"),
     variable.packages = c("wealth", "empowerment", "matching"),
@@ -137,9 +146,9 @@ my.dt[ , woman.thinks.IPV.can.be.justified := apply(my.dt[, list(empowerment.V74
 my.dt[ , man.thinks.IPV.can.be.justified := apply(my.dt[, list(empowerment.MV744A, empowerment.MV744B, empowerment.MV744C, empowerment.MV744D, empowerment.MV744E), ], 1, any), ]
 
 ## Keep only cases with data on at least one of our focal variables
-my.dt <- my.dt[which(is.na(woman.thinks.IPV.can.be.justified) == FALSE |
-                           is.na(woman.thinks.IPV.can.be.justified) == FALSE |
-                           is.na(man.thinks.IPV.can.be.justified) == FALSE), ]
+my.dt <- my.dt[which(is.na(woman.exposed.to.IPV) == FALSE |
+                     is.na(woman.thinks.IPV.can.be.justified) == FALSE |
+                     is.na(man.thinks.IPV.can.be.justified) == FALSE), ]
 
 contextuals.f <- function(var.name, my.dt){
     ## make var.name a binary variable
@@ -346,9 +355,6 @@ setkey(my.temp.set.4, ClusterID, year.of.interview)
 setkey(my.dt, ClusterID, year.of.interview)
 my.dt.temp <- merge(my.dt, my.temp.set.4)
 
-## Use the letter code instead of the digit code, so we get more informative labels
-my.dt.temp[, country := iso.3166$String.code[match(country.code.ISO.3166.alpha.3, iso.3166$numeric)], ]
-
 ## rename columns to match previous data file
 colnames(my.dt.temp) <- gsub("woman.exposed.to.IPV", "viol01_wife", colnames(my.dt.temp))
 colnames(my.dt.temp) <- gsub("iwi", "iwi2", colnames(my.dt.temp))
@@ -357,10 +363,38 @@ colnames(my.dt.temp) <- gsub("GDI", "gdi_s", colnames(my.dt.temp))
 colnames(my.dt.temp) <- gsub("GNI", "gni_s", colnames(my.dt.temp))
 colnames(my.dt.temp) <- gsub("empowerment.V149", "v149", colnames(my.dt.temp))
 
-## keep only the needed columns, and only complete cases
-## my.dt.clean <- my.dt.temp[which(is.na(beat01_couple) == FALSE &
+## Convert the country code from numeric to letters
+my.dt.temp[, country := iso.3166$String.code[match(country.code.ISO.3166.alpha.3, iso.3166$numeric)], ]
+
+## ## Remove data that appears to be artifacts rather than real data
+## ## viol01_wife
+## MMR                         0.6000000 0.40000000     6
+## SWZ                               NaN        NaN     1
+## TCD                         1.0000000 0.00000000     3
+
+## What is wrong with these? Honduras, Moldova and Timor-Leste
+## HND                         1.0000000 0.00000000  3304
+## MDA                         1.0000000 0.00000000   939
+## TLS                         1.0000000 0.00000000  3781
+
+## SLE Sierra Leone is also weird, but not necessarily wrong.
+## SLE                         0.5000000 0.50000000  8594
+
+my.dt.temp <- my.dt.temp[which(country %in% c("HND", "MDA", "MMR", "SWZ", "TCD", "TLS") == FALSE), ]
+
+## Use the string instead of the digit code, so we get more informative labels
+my.dt.temp[, country := iso.3166$String[match(country.code.ISO.3166.alpha.3, iso.3166$numeric)], ]
+
+## keep only the needed columns, and only complete cases, this set will
+## only be used for the regression which requires non-missing data.
+
 my.dt.clean <- my.dt.temp[which(is.na(beat01_couple) == FALSE &
-                                is.na(gdi_s) == FALSE &
+                                is.na(viol01_wife) == FALSE &
+                                is.na(v149) == FALSE &
+                                is.na(decide2_purchases) == FALSE &
+                                is.na(decide2_health) == FALSE & 
+                                is.na(ln_numb_of_children) == FALSE &
+                                is.na(lnage_wife) == FALSE &
                                 is.na(iwi2) == FALSE),                                
                           list(viol01_wife, beat01_couple, v149, edudeviation, decide2_purchases, decide2_health, gdi_s, gni_s, viol01_cluster, justifyIPV_cluster, iwi2, country, cluster1, ln_numb_of_children, lnage_wife, lon, lat), ]
 
@@ -370,7 +404,7 @@ for(var in c("gni_s", "iwi2")){
 }
 
 ## Treat the states of India as countries (note that they already have separate values for GDI and GNI, the country change only affect the random intercept).
-these <- which(my.dt.clean$country == "IND")
+these <- which(my.dt.clean$country == "India")
 my.dt.clean$country[these] <- as.vector(sapply(as.character(my.dt.clean$cluster1[these]), function(x) {
    strsplit(x, ".", fixed = TRUE)[[1]][2]
 }))
@@ -827,7 +861,10 @@ terra::plot(my.borders, add = TRUE, col = NA, border = "darkgreen", lwd = 1)
 Start python.
 
 <<python.avoid.startup.bug, echo = FALSE>>=
+knitr::opts_chunk$set(python.reticulate=TRUE)
+library(reticulate)
 reticulate::use_python(path.to.python, required = TRUE)
+use_virtualenv("/mimer/NOBACKUP/groups/globalpoverty1/hans/.my-venv")
 reticulate::py_run_string("import pymc as mc")
 @ 
 
@@ -917,7 +954,8 @@ B = dmatrix(
 
 Figure \vref{fig:spline-data-preparation-inspect-spline} shows how a given value on «justifyIPV\_cluster« maps to a specific set of weights, without the spline intercept.
 
-<<spline-data-preparation-inspect-spline, engine='python', echo = FALSE, results = 'markup', cache = TRUE, dev = "png", fig.cap = "For a given value on justifyIPV\\_cluster, the values of the curves indicate the weight of each parameter.">>=
+<<spline-data-preparation-inspect-spline, engine='python', echo = FALSE, results = 'markup', cache = TRUE, dev = "png", fig.cap = "For a given value on justifyIPV\\_cluster, the values of the curves indicate the weight of each parameter.", fig.width = 4, fig.height = 4, fig.align = "center">>=
+import matplotlib.pyplot as plt
 spline_df = (
     pd.DataFrame(B)
     .assign(justifyIPV_cluster=df.justifyIPV_cluster.values)
@@ -943,15 +981,21 @@ df = pd.concat([df, B_df], axis=1)
 
 With that in place we can inspect how a given value of «justifyIPV\_cluster« translates to values on the new columns (named ``spline, 0''  to ``spline, 2''), see table \vref{tab:splines}. To produce this slice, only the rows in «df« with unique values on «justifyIPV\_cluster« was kept.
 
-<<spline-create-new-slice, engine='python', cache = FALSE, echo = TRUE, results = "markup">>=
+<<spline-create-new-slice, engine='python', cache = TRUE, echo = TRUE, results = "markup">>=
 unique_rows = df.drop_duplicates(subset='justifyIPV_cluster').head(6)
 my_tab_2 = unique_rows.iloc[:5, np.hstack((5, range(len(unique_rows.columns)-(num_knots + 1), len(unique_rows.columns))))]
 @
 
-<<spline-print.sorted.table, results='asis', echo = FALSE, cache = TRUE>>=
+<<spline-print.sorted.table, results='asis', echo = FALSE, cache = TRUE, dependson = "spline-create-new-slice">>=
 library(xtable)
 print(xtable(py$my_tab_2, caption = "justifyIPV\\_cluster and some of the columns that will replace it in the model. These rows represents the right most part of figure \\vref{fig:spline-data-preparation-inspect-spline}; at 0.98 the last curve is at value 0.5927 and the second curve is at value 0.3720.", digits = 4, label = "tab:splines"), booktabs = TRUE)
 @
+
+Save the model matrix for predictions in «R«. 
+
+<<python.3, engine='python', cache = TRUE, echo = TRUE, results = "markup">>=
+df.to_csv("ipv-women-model_matrix.csv", index=False)
+@ 
 
 \section{Create the model}
 The splines are also ``just ordinary'' $\beta$-coefficients. There is one thing that goes beyond the standard model though, the interaction between «beat01\_couple« and «justifyIPV\_cluster«, and since the latter is substituted by the splines in the model, it is worth spelling out how that is done. Consider table \vref{tab:splines}, which shows the values of «justifyIPV\_cluster« and the splines. Let us define $x_{1}, x_{2} and x_{3}$ as spline 0, spline 1 and spline 2 respectively. The other variable in the interaction, «beat01\_couple«, is also substituted in the model, in this case to dummy variables representing ``Wife justifys IPV'', ``Husband justifys IPV'', ``Both justify IPV'', let us say $x_{4}, x_{5}$ and $x_{6}$. Ignoring the other variables in the model, the variables relevant for «beat01\_couple« and «justifyIPV\_cluster« could be classified into three parts:
@@ -1107,12 +1151,10 @@ with my_model:
 
 Then the continuous variables, note that there is no reference to the focal variable «justifyIPV\_cluster«, instead we will use a version of «B«.
 
-%%     X_lnage_wife = pm.ConstantData("X_lnage_wife", df["lnage_wife"])
-
-
 <<spline-fit-model-9, engine = "python", results = "markup", cache = TRUE>>=
 with my_model:
     X_iwi = pm.ConstantData("X_iwi", df["iwi2"])
+    X_lnage_wife = pm.ConstantData("X_lnage_wife", df["lnage_wife"])
     X_ln_numb_of_children = pm.ConstantData("X_ln_numb_of_children", df["ln_numb_of_children"])
     X_gdi = pm.ConstantData("X_gdi", df["gdi_s"])
     X_gni = pm.ConstantData("X_gni", df["gni_s"])
@@ -1125,8 +1167,6 @@ Next step is to add a formula that connects the observed outcome via a distribut
       % X_Husband_iliterate * literate_couple[0] + \
       % X_Wife_iliterate * literate_couple[1] + \
       % X_Both_literate * literate_couple[2] + \
-      % X_lnage_wife * lnage_wife + \
-
 
 <<spline-fit-model-10, engine = "python", results = "markup", cache = TRUE>>=
 with my_model:
@@ -1149,6 +1189,7 @@ with my_model:
       X_higher * education[4] + \
       X_iwi * iwi2 + \
       X_ln_numb_of_children * ln_numb_of_children + \
+      X_lnage_wife * lnage_wife + \
       X_gdi * gdi + \
       X_gni * gni + \
       random_intercept_country[Z_country] + \
@@ -1175,16 +1216,14 @@ I think that during the tuning process, the «NUTS« sampler rescale the dimensi
 
 If you have a graphical processing unit (GPU) from «nvidia«, then install «jax« with gpu support. The code below will use the «numpyro\_nuts« sampler, which is built on top of «jax«, if «jax« is installed, and fall back to the native «pymc« «NUTS« sampler which uses CPU if «jax« is not installed. To be able to post process the parameter samples, these are saved  to disk with the function «dump()« in the library «pickle«. («batches=2« is my own invention, which reduces the RAM requirements on the GPU).
 
-% my_fit_pymc = pm.sample(random_seed=1234, tune=10, draws=40, target_accept=0.8, chains = 4, chain_method='parallel', cores=4, nuts_kwargs=dict(max_tree_depth=10), idata_kwargs=dict(log_likelihood=False), postprocessing_backend="cpu")
-
 % Seems like import pymc.sampling.jax works on system that does not have my custom version of pymc.
 
 <<spline-fit-model-12, engine = "python", results = "markup", eval = !file.exists("ipv-women2.pydata"), cache = TRUE>>=
 import pickle
 try:
-    import pymc.sampling_jax
+    import pymc.sampling.jax
     with my_model:
-        my_fit_pymc = pm.sampling_jax.sample_numpyro_nuts(random_seed=1234, tune=100, draws=400, target_accept=0.8, chains = 4, chain_method='parallel', nuts_kwargs=dict(max_tree_depth=10), idata_kwargs=dict(log_likelihood=False), postprocessing_backend="cpu")
+        my_fit_pymc = pm.sampling.jax.sample_numpyro_nuts(random_seed=1234, tune=100, draws=400, target_accept=0.8, chains = 4, chain_method='parallel', progressbar = False, idata_kwargs=dict(log_likelihood=False), postprocessing_backend="cpu")
 except ImportError as e:
     with my_model:
         my_fit_pymc = pm.sample(random_seed=1234, tune=200, draws=400, target_accept=0.9, chains = 2, max_treedepth=10, idata_kwargs=dict(log_likelihood=False))
@@ -1215,6 +1254,9 @@ print(xtable(conv.tab, caption = "High Density Interval (HDI) and convergence st
 Show a trace plot of «couple\_attitudes«, note that these parameters only describe the effect of the attitudes in question when «justifyIPV\_cluster« is at zero, and also note that the reference category is ``No one justifys IVP''. Since there is no legend, this graph is not very informative, but it indicates that the model had enough tuning (or ``burn-in'') since the early samples are at the same level as the last samples; and the large fluctuations between nearby samples indicate that the parameter space is searched thoroughly, see figure \vref{fig:spline-evaluate-model-5}.
 
 <<spline-evaluate-model-5, engine = "python", dev = "png", cache = TRUE, fig.cap = "Trace plot for the attitude of the couple.">>=
+import pickle
+my_fit_pymc = pickle.load(open("ipv-women2.pydata", "rb"))
+import arviz
 arviz.plot_trace(my_fit_pymc, var_names = ["couple_attitudes"], compact = True)
 @
 
@@ -1233,23 +1275,23 @@ df_results.to_csv("ipv-women-sampled-parameters.csv", index=False)
 
 Import both the sampled parameters and the ``model matrix'' and make a clean version of the model matrix that \emph{only} contains the data that corresponds to the columns in params, and is in the \emph{right order}. The column order in the set of sampled parameters is the same order as used then defining the priors in the model.
 
-\begin{itemize}
+\begin{compactenum}
 \item Intercept
 \item couple\_attitudes
 \item spline
 \item interaction\_terms
-\item education
 \item decide\_health
 \item decide\_purchase
+\item education
 \item edudeviation
 \item iwi2
-\item ln\_numb\_of\_children
+\item ln\_numb\_of\_children  
+\item lnage\_wife
 \item gdi
 \item gni
 \item random term cluster (ignore when predicting)
 \item random term country (ignore when predicting)
-\end{itemize}
-
+\end{compactenum}
 
 <<spline-clean.mm>>=
 ipv.mm <- read.csv("ipv-women-model_matrix.csv", check.names = FALSE)
@@ -1272,22 +1314,20 @@ interaction_terms <- unlist(sapply(c(attitudes), function(attitude) {
     }, simplify = FALSE)
 }, simplify = FALSE), recursive = FALSE)
 
-education <- cbind(sapply(c("v149_Complete primary", "v149_Complete secondary", "v149_Higher", "v149_Incomplete primary", "v149_Incomplete secondary"), function(educational.level){
-    car::recode(ipv.mm[[educational.level]], recodes = my.recodes)
-}))
-
 dummies <- cbind(sapply(c(
     "decide2_health_joint decisions", "decide2_health_husband decides", "decide2_health_wife decides",
-    "decide2_purchases_husband decides", "decide2_purchases_joint decisions", "decide2_purchases_wife decides", 
+    "decide2_purchases_husband decides", "decide2_purchases_joint decisions", "decide2_purchases_wife decides",
+    "v149_Complete primary", "v149_Complete secondary", "v149_Higher", "v149_Incomplete primary", "v149_Incomplete secondary",    
     "edudeviation_Husband has higher edu.", "edudeviation_Wife has higher edu."), function (dummy){
         car::recode(ipv.mm[[dummy]], recodes = my.recodes)        
     }))
 
 splines <- ipv.mm[my.spline.names]
 
-as.is <- ipv.mm[c("iwi2", "ln_numb_of_children", "gdi_s", "gni_s")]
+as.is.1 <- ipv.mm[c("gdi_s", "gni_s")]
+as.is.2 <- ipv.mm[c("iwi2", "ln_numb_of_children", "lnage_wife")]
 
-my.mm <- cbind(Intercept = rep(1, nrow(ipv.mm)), couple_attitudes, splines, interaction_terms, education, dummies, as.is)
+my.mm <- cbind(Intercept = rep(1, nrow(ipv.mm)), couple_attitudes, dummies, as.is.1, interaction_terms, as.is.2, splines)
 
 ## get the sample means
 my.means <- apply(my.mm, 2, mean)
@@ -1310,7 +1350,7 @@ quantiles <- quantiles[keep.these]
 ## interesting.points <- ipv.mm[match(quantiles, ipv.mm$justifyIPV_cluster), c("justifyIPV_cluster", my.spline.names)]
 @
 
-<<spline-show-interesting.points, echo = FALSE, results="asis">>=
+<<spline-show-interesting.points, echo = FALSE, results="asis", eval = FALSE>>=
 print(xtable(interesting.points, label = "tab:half-deciles", caption = "The non extreme half-deciles of «justifyIPV\\_cluster« and the corresponding values on the splines."), include.rownames = FALSE, booktabs = TRUE)
 @
 
