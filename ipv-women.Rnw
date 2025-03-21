@@ -1138,7 +1138,7 @@ df=df.sort_values(by='justifyIPV_cluster',ascending=False).reset_index(drop=True
 Construct the matrix «B«, and the data frame version of the same data, «spline\_df«. «B« will be used as a model matrix for some of the parameters of the model, while «spline\_df« is convenient to have when we inspect the data visually. In the end, we want to replace «justifyIPV\_cluster« with a version of «B«, and for this purpose, «B\_df« is constructed.
 
 <<spline-data.preparation.spline, engine='python', results = 'markup', cache = TRUE>>=
-num_knots = 3
+num_knots = 2
 knot_list = np.quantile(df.justifyIPV_cluster, np.linspace(0, 1, num_knots))
 @
 
