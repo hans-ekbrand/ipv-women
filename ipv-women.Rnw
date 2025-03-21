@@ -54,7 +54,6 @@ if(Sys.info()["sysname"] == "Windows"){
 \section{Install software}
 To compile this document, including rendering the graphs, a working «R« and «Python/PYMC« installation is assumed. If run a on High-performance computing (HPC) cluster with restrictions on software installation that inhibits on the fly installation of needed «R« and «Python« packages, make sure the following packages are installed.
 
-<<install.packages>>=
 ## Install necessary R packages
 required.packages <- c("lme4", "data.table", "xtable", "effects", "parallel", "future", "doFuture", "foreach", "sf", "terra", "parallelly", "cooltools", "raster", "formatR", "lwgeom", "autoFRK", "rnaturalearthdata", "rnaturalearth", "spatstat.geom", "spatstat.random")
 for(package in required.packages){
@@ -316,6 +315,19 @@ my.dt[ , ln_numb_of_children := log(0.5 + apply(cbind(empowerment.V202, empowerm
 
 my.dt[ , lnage_wife := log(age), ]
 
+## Construct the literacy of the couple
+my.dt[ , man.is.illiterate := ifelse(car::recode(empowerment.MV155, recodes = "c('Cannot read at all', 'Blind/visually impaired', 'Vision problems') = TRUE; c('Able to read only parts of sentence', 'Able to read whole sentence') = FALSE; c('No card with required language', 'No card with required language/visually impaired') = NA") == "TRUE", TRUE, FALSE), ]
+
+my.dt[, wife.is.illiterate := ifelse(car::recode(empowerment.V155, recodes = "c('Able to read only parts of sentence', 'Able to read whole sentence', 'Reads easily', 'Reads with difficulty') = 0; c('Cannot read at all', 'Blind/visually impaired', 'Cannot read at all', 'Vision problems', 'Blind / visually impaired', 'Cannot see/Blind', 'Blind, cannot see well', 'No card with required language/Visually impaired') = 1; 'No card with required language' = NA") == 1, TRUE, FALSE), ]
+
+my.dt[, husband.is.illiterate := man.is.illiterate[my.map], ]
+
+my.dt[, couple.is.illiterate := factor(rep(NA, nrow(my.dt)), levels = c("No one can read", "Only husband can read", "Only wife can read", "Both can read")), ]
+my.dt[which(husband.is.illiterate & wife.is.illiterate), couple.is.illiterate := "No one can read", ]
+my.dt[which(husband.is.illiterate & (wife.is.illiterate == FALSE)), couple.is.illiterate := "Only wife can read", ]
+my.dt[which((husband.is.illiterate == FALSE) & wife.is.illiterate), couple.is.illiterate := "Only husband can read", ]
+my.dt[which((husband.is.illiterate == FALSE) & (wife.is.illiterate == FALSE)), couple.is.illiterate := "Both can read", ]
+
 ## For all data points that we have coordinates for, we use
 ## point-in-polygon techniques to match Subnational GDI and
 ## Subnational GNI from the Global Data Lab.
@@ -495,15 +507,16 @@ my.dt.clean <- my.dt.temp[which(is.na(beat01_couple) == FALSE &
                                 is.na(decide2_health) == FALSE & 
                                 is.na(ln_numb_of_children) == FALSE &
                                 is.na(lnage_wife) == FALSE &
+                                is.na(couple.is.illiterate) == FALSE &
                                 is.na(iwi2) == FALSE),                                
-                          list(viol01_wife, beat01_couple, v149, edudeviation, decide2_purchases, decide2_health, gdi_s, gni_s, viol01_cluster, justifyIPV_cluster, iwi2, country, cluster1, ln_numb_of_children, lnage_wife, lon, lat), ]
+                          list(viol01_wife, beat01_couple, v149, edudeviation, decide2_purchases, decide2_health, gdi_s, gni_s, viol01_cluster, justifyIPV_cluster, iwi2, country, cluster1, ln_numb_of_children, lnage_wife, couple.is.illiterate, lon, lat), ]
 
 ## z-standardize some numeric variables
 for(var in c("gni_s", "iwi2")){
     my.dt.clean[[var]] <- scale(my.dt.clean[[var]])
 }
 
-## Treat the states of India as countries (note that they already have separate values for GDI and GNI, the country change only affect the random intercept).
+## Treat the states of India as countries (note that they already have separate values for GDI and GNI, the country change only affects the random intercept).
 these <- which(my.dt.clean$country == "India")
 my.dt.clean$country[these] <- as.vector(sapply(as.character(my.dt.clean$cluster1[these]), function(x) {
    strsplit(x, ".", fixed = TRUE)[[1]][2]
@@ -518,6 +531,7 @@ my.dt <- my.dt.temp
 save(my.dt, file = "full.set.RData")
 
 ## Create the two sets needed for kriging: these need to have
+<<install.packages, cache = FALSE>>=
 ## non-missing on lon, lat, but justifyIPV_cluster does not require
 ## the cases to have non-missing on viol01_cluster. Since
 ## justifyIPV_cluster is asked in more surveys, use that extra data!
@@ -1258,7 +1272,7 @@ Now add the three dummy variables, use the names defined in «coords« for «cou
 
 <<spline-fit-model-3, engine = "python", results = "markup", cache = TRUE>>=
 with my_model:
-    couple_attitudes = pm.Normal("couple_attitudes", mu=0, sigma=1, dims = "couple_attitude_dims")
+    couple_attitudes = pm.Normal("couple_attitudes", mu=0, sigma=5, dims = "couple_attitude_dims")
 @
 
 Priors for the splines, where we use information from B. First, set up parameters for how the splines affect couples in the reference category, ``No one justify IPV''. Note that at this point the user does not need to know how many splines there are, «size=B.shape[1]« creates as many priors as there are splines.
@@ -1272,37 +1286,37 @@ In addition, add parameters for the interaction between justifyIPV\_cluster, whi
 
 <<spline-fit-model-6.5, engine = "python", results = "markup", cache = TRUE>>=
 with my_model:
-    interaction_terms = pm.Normal("interaction_terms", mu=0, sigma=1, dims = ["couple_attitude_dims", "splines_dims"])
+    interaction_terms = pm.Normal("interaction_terms", mu=0, sigma=5, dims = ["couple_attitude_dims", "splines_dims"])
 @
 
 With priors for the focal variables in place, here is the remaining fixed effects factors
-%%     literate_couple = pm.Normal("literate_couple", mu=0, sigma=1, dims = "literate_couple_dims")
+%%     literate_couple = pm.Normal("literate_couple", mu=0, sigma=5, dims = "literate_couple_dims")
 
 <<spline-fit-model-3.5, engine = "python", results = "markup", cache = TRUE>>=
 with my_model:
-    education = pm.Normal("education", mu=0, sigma=1, dims = "education_dims")
-    decide_health = pm.Normal("decide_health", mu=0, sigma=1, dims = "decide_health_dims")
-    decide_purchase = pm.Normal("decide_purchase", mu=0, sigma=1, dims = "decide_purchase_dims")
-    edudeviation = pm.Normal("edudeviation", mu=0, sigma=1, dims = "edudeviation_dims")
+    education = pm.Normal("education", mu=0, sigma=5, dims = "education_dims")
+    decide_health = pm.Normal("decide_health", mu=0, sigma=5, dims = "decide_health_dims")
+    decide_purchase = pm.Normal("decide_purchase", mu=0, sigma=5, dims = "decide_purchase_dims")
+    edudeviation = pm.Normal("edudeviation", mu=0, sigma=5, dims = "edudeviation_dims")
 @
 
 More fixed effects priors, now the continuous variables.
 
 <<spline-fit-model-4, engine = "python", results = "markup", cache = TRUE>>=
 with my_model:
-    iwi2 = pm.Normal("iwi2", mu=0, sigma=1)
+    iwi2 = pm.Normal("iwi2", mu=0, sigma=5)
     lnage_wife = pm.Normal("lnage_wife", mu=0, sigma=5)
-    ln_numb_of_children = pm.Normal("ln_numb_of_children", mu=0, sigma=2)
-    gdi = pm.Normal("gdi", mu=0, sigma=2)
-    gni = pm.Normal("gni", mu=0, sigma=2)
+    ln_numb_of_children = pm.Normal("ln_numb_of_children", mu=0, sigma=5)
+    gdi = pm.Normal("gdi", mu=0, sigma=5)
+    gni = pm.Normal("gni", mu=0, sigma=5)
 @
 
 Priors for the random effects. Every level will get its own dummy variable.
 
 <<spline-fit-model-5, engine = "python", results = "markup", cache = TRUE>>=
 with my_model:
-    random_intercept_country = pm.Normal("1|country", mu=0, sigma=pm.HalfNormal("1|country_sigma", sigma=2.5), dims = "1|country_dims")
-    random_intercept_cluster = pm.Normal("1|cluster", mu=0, sigma=pm.HalfNormal("1|cluster_sigma", sigma=2.5), dims = "1|cluster_dims")
+    random_intercept_country = pm.Normal("1|country", mu=0, sigma=pm.HalfNormal("1|country_sigma", sigma=5), dims = "1|country_dims")
+    random_intercept_cluster = pm.Normal("1|cluster", mu=0, sigma=pm.HalfNormal("1|cluster_sigma", sigma=5), dims = "1|cluster_dims")
 @
 
 Now that the priors are defined, inform pymc about where to find the data for the model matrix. Start with the random variables.
