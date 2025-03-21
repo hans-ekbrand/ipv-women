@@ -157,14 +157,6 @@ load("~/user_credentials_dhs.RData") # a list with two named elements:
 my.dt <- download.and.harmonise(
     dhs.user=credentials$dhs.user,
     dhs.password=credentials$dhs.password,
-    waves = list("Afghanistan" = "71", "Angola" = "71", "Armenia" = "72", "Benin" = "71", "Burkina Faso" = "81", 
-                 "Cambodia" = c("73", "82"), "Cameroon" = "71", "Colombia" = "72",
-                 "Cote d'Ivoire" = "81", "Dominican Republic" = "61", "Ethiopia" = "71", "Haiti" = "71",
-                 "Gabon" = "71", "Gambia" = "81", "Ghana" = "8C", "Guinea" = "71", "India" = c("74", "7E"),
-                 "Jordan" = "74", "Kenya" = "72", "Liberia" = "7A", "Madagascar" = "81", "Maldives" = "71", "Malawi" = "7A", 
-                 "Mali" = "7A", "Mauritania" = "71", "Mozambique" = "62", "Myanmar" = "71", "Nepal" = "7H",
-                 "Nigeria" = "7B", "Pakistan" = "71", "Papua New Guinea" = "71", "Rwanda" = "81", 
-                 "Sierra Leone" = "7A", "South Africa" = "71", "Tanzania" = "7B", "Togo" = "61", "Zambia" = "61", "Zimbabwe" = "72"),
     vars.to.keep = NULL,
     file.types.to.download = c("PR", "GE", "IR", "MR", "KR"),
     variable.packages = c("wealth", "empowerment", "matching"),
@@ -1138,7 +1130,7 @@ df=df.sort_values(by='justifyIPV_cluster',ascending=False).reset_index(drop=True
 Construct the matrix «B«, and the data frame version of the same data, «spline\_df«. «B« will be used as a model matrix for some of the parameters of the model, while «spline\_df« is convenient to have when we inspect the data visually. In the end, we want to replace «justifyIPV\_cluster« with a version of «B«, and for this purpose, «B\_df« is constructed.
 
 <<spline-data.preparation.spline, engine='python', results = 'markup', cache = TRUE>>=
-num_knots = 2
+num_knots = 3
 knot_list = np.quantile(df.justifyIPV_cluster, np.linspace(0, 1, num_knots))
 @
 
