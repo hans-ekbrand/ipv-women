@@ -52,11 +52,11 @@ if(Sys.info()["sysname"] == "Windows"){
 @
 
 \section{Install software}
-To compile this document, including rendering the graphs, a working «R« and «Python/PYMC« installation is assumed. If run a on High-performance computing (HPC) cluster with restrictions on software installation that inhibits on the fly installation of needed «R« and «Python« packages, make sure the following «R« packages are installed.
+To compile this document, including rendering the graphs, a working «R« and «Python/PYMC« installation is assumed. If run a on High-performance computing (HPC) cluster with restrictions on software installation that inhibits on the fly installation of needed «R« and «Python« packages, make sure the following packages are installed.
 
 <<install.packages>>=
 ## Install necessary R packages
-required.packages <- c("lme4", "data.table", "xtable", "effects", "parallel", "future", "doFuture", "foreach", "sf", "sp", "terra", "parallelly", "cooltools", "raster", "formatR", "lwgeom", "autoFRK", "rnaturalearthdata", "rnaturalearth")
+required.packages <- c("lme4", "data.table", "xtable", "effects", "parallel", "future", "doFuture", "foreach", "sf", "terra", "parallelly", "cooltools", "raster", "formatR", "lwgeom", "autoFRK", "rnaturalearthdata", "rnaturalearth", "spatstat.geom", "spatstat.random")
 for(package in required.packages){
     if(!require(package, character.only=TRUE)){
         install.packages(package, character.only=TRUE)
@@ -73,12 +73,12 @@ Create the following variables: «beat01\_couple« (attitude to IPV), «iliterat
 
 «beat01\_couple« is a classification of the couples into one of the four possible combinations of attitudes to IPV by the wife and the husband in the couple:
 
-\begin{itemize}
+\begin{compactenum}
 \item No one accepts IPV 
 \item Wife accepts IPV 
 \item Husband accepts IPV 
 \item Both accept IPV 
-\end{itemize}
+\end{compactenum}
 
 It is based on the following five questions, encoded in 10 variables (5 for the husband and 5 for the man), based on the the following statment:
 
@@ -113,6 +113,40 @@ The table below show which variable encodes the answer from the man and the woma
 
 Also add GDI and HDI subnational data from the \href{Global Data Lab}{https://globaldatalab.org/shdi/table/sgdi/} (For now, use manually downloaded local CSV-files and map our GIS points to their Shapefiles, but when their package is fixed, use that instead of local files).
 
+<<björns.set, echo = FALSE>>=
+## Not in björns set
+## Bangladesh, Burundi, Chad, Congo, Democratic Republic of the Congo, Egypt, Guatemala, Guinea, Jordan = "81", Kenya = "8C", Lesotho, Mozambique = "81", Namibia, Philippines, Senegal, Tajikistan, Timor-Leste, Turkey, Uganda
+
+## no data about violence in the set above
+## Bangladesh, Congo, Guinea, Turkey, 
+
+## Not in my set
+## Jordan "74", Kenya = "72", Mali = "83", Mozambique = "62", Nepal = "7H", Tanzania = "7B", Zambia = "61"
+
+## ## my.set
+## waves = list("Afghanistan" = "71", "Angola" = "71", "Armenia" = "72", "Bangladesh" = "81", "Benin" = "71", "Burkina Faso" = "81", "Burundi" = "71",
+##                  "Cambodia" = c("73", "82"), "Cameroon" = "71", "Chad" = "71", "Colombia" = c("71", "72"), "Congo" = "61",
+##                  "Congo Democratic Republic" = "61", "Cote d'Ivoire" = "81", "Dominican Republic" = "61", "Egypt" = "61", "Ethiopia" = "71", "Haiti" = "71",
+##                  "Gabon" = "71", "Gambia" = "81", "Ghana" = "8C", "Guatemala" = "71", "Guinea" = "71", "India" = c("74", "7E"),
+##                  "Jordan" = "81", "Kenya" = "8C", "Lesotho" = "81", "Liberia" = "7A", "Madagascar" = "81", "Maldives" = "71", "Malawi" = "7A", 
+##                  "Mali" = "7A", "Mauritania" = "71", "Mozambique" = "81", "Myanmar" = "71", "Namibia" = "61", "Nepal" = "82",
+##                  "Nigeria" = "7B", "Pakistan" = "71", "Papua New Guinea" = "71", "Philippines" = "82", "Rwanda" = "81", "Senegal" = "8B",
+##                  "Sierra Leone" = "7A", "South Africa" = "71", "Tajikistan" = "72", "Tanzania" = "82", "Timor-Leste" = "71", "Togo" = "61",
+##              "Turkey" = "71", "Uganda" = "7B", "Zambia" = "71", "Zimbabwe" = "72"),
+
+## ## björns set
+
+## waves = list("Afghanistan" = "71", "Angola" = "71", "Armenia" = "72", "Benin" = "71", "Burkina Faso" = "81", 
+##                  "Cambodia" = c("73", "82"), "Cameroon" = "71", "Colombia" = "72",
+##                  "Cote d'Ivoire" = "81", "Dominican Republic" = "61", "Ethiopia" = "71", "Haiti" = "71",
+##                  "Gabon" = "71", "Gambia" = "81", "Ghana" = "8C", "Guinea" = "71", "India" = c("74", "7E"),
+##                  "Jordan" = "74", "Kenya" = "72", "Liberia" = "7A", "Madagascar" = "81", "Maldives" = "71", "Malawi" = "7A", 
+##                  "Mali" = "7A", "Mauritania" = "71", "Mozambique" = "62", "Myanmar" = "71", "Nepal" = "7H",
+##                  "Nigeria" = "7B", "Pakistan" = "71", "Papua New Guinea" = "71", "Rwanda" = "81", 
+##                  "Sierra Leone" = "7A", "South Africa" = "71", "Tanzania" = "7B", "Togo" = "61", "Zambia" = "61", "Zimbabwe" = "72"),
+
+@ 
+
 <<load.data.from.scratch>>=
 library(devtools)
 install_bitbucket(repo = "hansekbrand/iwi", upgrade = "never")
@@ -123,15 +157,14 @@ load("~/user_credentials_dhs.RData") # a list with two named elements:
 my.dt <- download.and.harmonise(
     dhs.user=credentials$dhs.user,
     dhs.password=credentials$dhs.password,
-    waves = list("Afghanistan" = "71", "Angola" = "71", "Armenia" = "72", "Bangladesh" = "81", "Benin" = "71", "Burkina Faso" = "81", "Burundi" = "71", "Cambodia" = "82",
-                 "Cameroon" = "71", "Chad" = "71", "Colombia" = c("71", "72"), "Congo" = "61", "Congo Democratic Republic" = "61", "Cote d'Ivoire" = "81",
-                 "Dominican Republic" = "61", "Egypt" = "61", "Ethiopia" = "71", "Haiti" = "71", "Gabon" = "71",
-                 "Gambia" = "81", "Ghana" = "8C", "Guatemala" = "71", "Guinea" = "71", "India" = c("74", "7E"),
-                 "Jordan" = "81", "Kenya" = "8C", "Lesotho" = "81", "Liberia" = "7A", "Madagascar" = "81", "Maldives" = "71", "Malawi" = "7A", 
-                 "Mali" = "7A", "Mauritania" = "71", "Mozambique" = "81", "Myanmar" = "71", "Namibia" = "61", "Nepal" = "82",
-                 "Nigeria" = "7B", "Pakistan" = "71", "Papua New Guinea" = "71", "Philippines" = "82", "Rwanda" = "81", "Senegal" = "8B",
-                 "Sierra Leone" = "7A", "South Africa" = "71", "Tajikistan" = "72", "Tanzania" = "82", "Timor-Leste" = "71", "Togo" = "61",
-                 "Turkey" = "71", "Uganda" = "7B", "Zambia" = "71", "Zimbabwe" = "72"),
+    waves = list("Afghanistan" = "71", "Angola" = "71", "Armenia" = "72", "Benin" = "71", "Burkina Faso" = "81", 
+                 "Cambodia" = c("73", "82"), "Cameroon" = "71", "Colombia" = "72",
+                 "Cote d'Ivoire" = "81", "Dominican Republic" = "61", "Ethiopia" = "71", "Haiti" = "71",
+                 "Gabon" = "71", "Gambia" = "81", "Ghana" = "8C", "Guinea" = "71", "India" = c("74", "7E"),
+                 "Jordan" = "74", "Kenya" = "72", "Liberia" = "7A", "Madagascar" = "81", "Maldives" = "71", "Malawi" = "7A", 
+                 "Mali" = "7A", "Mauritania" = "71", "Mozambique" = "62", "Myanmar" = "71", "Nepal" = "7H",
+                 "Nigeria" = "7B", "Pakistan" = "71", "Papua New Guinea" = "71", "Rwanda" = "81", 
+                 "Sierra Leone" = "7A", "South Africa" = "71", "Tanzania" = "7B", "Togo" = "61", "Zambia" = "61", "Zimbabwe" = "72"),
     vars.to.keep = NULL,
     file.types.to.download = c("PR", "GE", "IR", "MR", "KR"),
     variable.packages = c("wealth", "empowerment", "matching"),
@@ -149,6 +182,8 @@ my.dt[ , man.thinks.IPV.can.be.justified := apply(my.dt[, list(empowerment.MV744
 my.dt <- my.dt[which(is.na(woman.exposed.to.IPV) == FALSE |
                      is.na(woman.thinks.IPV.can.be.justified) == FALSE |
                      is.na(man.thinks.IPV.can.be.justified) == FALSE), ]
+
+save(my.dt, file = "temp.RData")
 
 contextuals.f <- function(var.name, my.dt){
     ## make var.name a binary variable
@@ -289,6 +324,80 @@ my.dt[ , ln_numb_of_children := log(0.5 + apply(cbind(empowerment.V202, empowerm
 
 my.dt[ , lnage_wife := log(age), ]
 
+## For all data points that we have coordinates for, we use
+## point-in-polygon techniques to match Subnational GDI and
+## Subnational GNI from the Global Data Lab.
+
+## Afghanistan lacks coordinate data, but the region names used by DHS
+## corresponds the 34 gadm areas at level 1, so with good enough
+## precision we can locate each case. For Afghanistan the polygons
+## provided by the GDL are coarser so precision is not lost.
+
+## Step 1, match RegionID from DHS with names of GADM region level 1
+Afghanistan.Region.ID.from.dhs <- car::recode(my.dt[country.code.ISO.3166.alpha.3 == 4, substring(RegionID, 4), ], recodes = "'Helmand' = 'Hilmand'; 'Herat' = 'Hirat'; 'Kunarha' = 'Kunar'; 'Nooristan' = 'Nuristan'; 'Panjsher' = 'Panjshir'; 'Sar-e-pul' = 'SariPul'; 'Urozgan' = 'Uruzgan'")
+
+## Update the RegionID in my.dt for these cases.
+my.dt[country.code.ISO.3166.alpha.3 == 4, RegionID := paste0("AF.", Afghanistan.Region.ID.from.dhs), ]
+
+## For each unique value of RegionID, count the number of clusters
+n.per.region <- my.dt[country.code.ISO.3166.alpha.3 == 4, length(unique(ClusterID)), by = RegionID]
+clusters.per.region <- my.dt[country.code.ISO.3166.alpha.3 == 4, unique(ClusterID), by = RegionID]
+
+## For now, just sample coordinates in the correct GADM region.
+## sampling points using the spatstat.random::rpoint(), which requires projected polygons
+
+## Get polygons for level 1 in Afghanistan
+## Define the URL and destination file
+if(! file.exists("gadm41_AFG_1.json.zip")){
+    url <- "https://geodata.ucdavis.edu/gadm/gadm4.1/json/gadm41_AFG_1.json.zip"
+    destfile <- "gadm41_AFG_1.json.zip"
+
+    ## Download the file
+    utils::download.file(url, destfile, mode = "wb")
+
+    ## Unzip the file
+    utils::unzip(destfile)
+}
+
+## read the shapes
+afghanistan <- sf::st_read(paste("gadm41_AFG_1.json"))
+
+## project the shapes
+afghanistan.level1.projected <- sf::st_transform(afghanistan[, "NAME_1"], "EPSG:3857")
+
+sample.points.f <- function(gadm.region.name, n, polygons){
+    my.win <- spatstat.geom::as.owin(polygons[match(gadm.region.name, polygons$NAME_1), ])
+    spatstat.random::rpoint(n = n, win = my.win)
+}
+
+## Generate coordinates for all cases from Afghanistan based on their RegionID by sampling.
+afghanistan.coordinates = data.table::rbindlist(sapply(unique(Afghanistan.Region.ID.from.dhs), function(region.name) {
+    my.n <- n.per.region$V1[match(paste0("AF.", region.name), n.per.region$RegionID)]
+    points_sampled <- sample.points.f(gadm.region.name = region.name, n = my.n, polygons = afghanistan.level1.projected)
+    ## Convert to sf
+    sf_points <- sf::st_as_sf(data.frame(x = points_sampled$x, y = points_sampled$y), 
+                          coords = c("x", "y"), crs = 3857)
+
+    ## Transform to lon/lat (EPSG 4326)
+    sf_points_lonlat <- sf::st_transform(sf_points, crs = 4326)
+
+    ## Extract coordinates
+    coords <- sf::st_coordinates(sf_points_lonlat)
+
+    ## Find the unique ClusterID:s in this region.
+    ClusterID = as.character(clusters.per.region$V1[clusters.per.region$RegionID %in% paste0("AF.", region.name)])
+    
+    return(data.table::data.table(ClusterID, lon = coords[, "X"], lat=coords[, "Y"]))
+}, simplify = FALSE))
+
+## impute longitude and latitude for the cases from Afghanistan
+
+for(i in 1:nrow(afghanistan.coordinates)){
+    these <- which(my.dt$ClusterID == afghanistan.coordinates$ClusterID[i])
+    my.dt[these, lon := rep(afghanistan.coordinates$lon[i], length(these)), ]
+    my.dt[these, lat := rep(afghanistan.coordinates$lat[i], length(these)), ]    
+}
+
 gdi <- setDT(read.csv(paste0(gdl.path, "GDL-Subnational-GDI-data.csv"), check.names = FALSE))
 ## keep only the necessary columns from hdi and gdi
 ## GDI has no data in columns "older" than 2000
@@ -347,8 +456,7 @@ setkey(gni.long, GDLCODE, year.of.interview)
 my.temp.set.4 <- merge(my.temp.set.3, gni.long)
 
 ## If GDLCODE is no longer useful, drop it
-## We might still use it though.
-## my.temp.set.4[, GDLCODE := NULL, ]
+my.temp.set.4[, GDLCODE := NULL, ]
 
 ## merge back to my.dt
 setkey(my.temp.set.4, ClusterID, year.of.interview)
@@ -411,18 +519,32 @@ my.dt.clean$country[these] <- as.vector(sapply(as.character(my.dt.clean$cluster1
 
 write.csv(my.dt.clean, file = "ipv-women2.csv", row.names = FALSE)
 save(my.dt.clean, file = "my.dt.clean.RData")
+
+## Also save a copy of the full set (including all vars, and cases
+## with missing data)
+my.dt <- my.dt.temp
+save(my.dt, file = "full.set.RData")
+
+## Create the two sets needed for kriging: these need to have
+## non-missing on lon, lat, but justifyIPV_cluster does not require
+## the cases to have non-missing on viol01_cluster. Since
+## justifyIPV_cluster is asked in more surveys, use that extra data!
+
 justifyIPV_cluster <- my.dt[which(! is.na(lon) & ! is.na(justifyIPV_cluster)), list(country.code.ISO.3166.alpha.3, lon, lat, justifyIPV_cluster), ]
 viol01_cluster <- my.dt[which(! is.na(lon) & ! is.na(viol01_cluster)), list(country.code.ISO.3166.alpha.3, lon, lat, viol01_cluster), ]
 
 ## clean up
 rm(my.dt, my.dt.temp, my.temp.set.4, my.temp.set.3, my.temp.set.2, my.temp.set, gdi, gni, gdi.clean, gni.clean, gdi.long, gni.long, my.cols, my.map, unique.pts.clean, unique.pts, indices, gdl.polygons, gdl.classification, gdl.codes, sf_points, education.levels.ordered)
 gc(verbose = FALSE)
+
 @
 
+\subsection{Adding data for observations without coordinates}
+\label{sec:adding-data-observ}
+There are countries, e.g. Afghanistan, which have relevant data, but lacks geographical coordinates. To merge these data with external data (the subnational Gender Equity Index GDI and the subnational productivity statistic GNI) used as control variables in the regression requires another strategy.
+
+
 \section{Mapping IPV - Exposure and Attitudes }
-<<set.gis.path>>=
-gis.map <- paste0(my.dir, "/GIS-borders/")
-@
 
 Apply \href{Kriging}{https://en.wikipedia.org/wiki/Kriging} on the data. Kriging gives a predicted smooth surface for the estimate of the dependent variable in an area. While Kriging can use (multiple) independent variables in this estimation, here it is used without any independent variables, so the input data used is only the coordinates the observations, and the observed value on the dependent variable at those coordinates. The procedure is applied on two different outcomes, the proportion of women in local area who thinks IPV can be justified, and the proportion of women in the local area that have experienced IPV by their current husband. Technically, Kriging predicts values for a large number of points in a grid covering the area of interest, and the resolution of the grid, the width and height of each cell, was set to 10 kilometers, i.e. 100 square kilometers. Disconnected areas, e.g. islands, were estimated separately while all adjacent countries were estimated together. For South east Asia, the total number of cells for which we estimated a value is 64287; Africa and Madagascar covered [fill in number here].
 
@@ -480,7 +602,7 @@ South.and.east <- c("Zambia", "Zimbabwe", "South Africa",
 The disconnected parts in South Asia.
 
 <<define.islands.asia>>=
-india.et.al <- c("Myanmar", "India", "Bangladesh", "Nepal", "Pakistan")
+india.et.al <- c("Myanmar", "India", "Bangladesh", "Nepal", "Pakistan", "Afghanistan")
 philippines <- "Philippines"
 timor <- "Timor-Leste"
 cambodia <- "Cambodia"
@@ -489,9 +611,9 @@ cambodia <- "Cambodia"
 \subsection{Prepare data for each continent}
 \label{sec:define-function-}
 
-The function creates a set of tables, and the relevant country borders, for a given set of countries.
+The function «generate.input.data.for.kriging.f()« defined below creates a set of tables, and the relevant country borders, for a given set of countries.
 
-\begin{itemize}
+\begin{compactenum}
 \item Select the relevant subset of observations for this set of countries.
 \item Discard observations with either missing coordinates or missing data.
 \item Take the mean of the dependent variable for each unique coordinate pair.
@@ -504,9 +626,13 @@ The function creates a set of tables, and the relevant country borders, for a gi
 \item Create a grid of points, separated by 10.000 meters, based on the extent of the polygon.
 \item Set all points in the grid that is outside the polygon to NA, to indicate that they are not relevant.
 \item Save the coordinates of all points that are not NA to an ordinary table.
-\end{itemize}
+\end{compactenum}
 
 This creates the two tables used for kriging (the observations), and predictions (the gridpoints) both in the correct reference system. In addition, also create the country borders that should be displayed on the maps. The country border data comes from the «R« package «rnaturalearthdata« accessed with the package «rnaturalearth«. To make the final maps less cluttered, the function accepts an argument for which country borders to ignore.
+
+<<set.gis.path>>=
+gis.map <- paste0(my.dir, "/GIS-borders/")
+@
 
 <<generate.input.data.for.kriging>>=
 generate.input.data.for.kriging.f <- function(my.set, my.var, my.clean.dt, projection = "EPSG:3857", my.cell.width = 10000, country.borders.to.ignore = NULL){
@@ -518,6 +644,10 @@ generate.input.data.for.kriging.f <- function(my.set, my.var, my.clean.dt, proje
         country.code.ISO.3166.alpha.3 %in% iso.3166$numeric[match(my.set, iso.3166$String)] &
         ! is.na(lon) &
         ! is.na(my.var), ]
+
+    if(nrow(my.dt.with.data) == 0){
+        return(NULL)
+    }
 
     ## only save one observation per coordinate pair,
     ## take the mean value of my.var at each unique coordinate
@@ -554,7 +684,11 @@ generate.input.data.for.kriging.f <- function(my.set, my.var, my.clean.dt, proje
     all.countries <- unique(my.dt.with.data$country)
     if(is.null(country.borders.to.ignore) == FALSE & length(which(country.borders.to.ignore %in% all.countries)) > 0){
         names.of.countries.to.include <- all.countries[which(all.countries %in% country.borders.to.ignore == FALSE)]
-        borders.to.plot <- world[world$admin %in% names.of.countries.to.include, ]
+        if(length(names.of.countries.to.include) > 0){
+            borders.to.plot <- world[world$admin %in% names.of.countries.to.include, ]
+        } else {
+            borders.to.plot <- NULL
+        }
     } else {
         borders.to.plot <- borders
     }
@@ -565,7 +699,15 @@ generate.input.data.for.kriging.f <- function(my.set, my.var, my.clean.dt, proje
     
     ## Note that the last obect is a SpatVector object, so make sure terra is loaded
     ## And terra version 1.7.0 is required for wrap()
-    return(list(points.with.data, my.grid.points, terra::wrap(borders), terra::wrap(borders.to.plot)))
+
+    ## Allow NULL values
+    if(is.null(borders) == FALSE){
+        borders <- terra::wrap(borders)
+    }
+    if(is.null(borders.to.plot) == FALSE){
+        borders.to.plot <- terra::wrap(borders.to.plot)
+    }
+    return(list(points.with.data, my.grid.points, borders, borders.to.plot))
 }
 
 @
@@ -625,6 +767,9 @@ kriging.full.pipeline.f <- function(prepared.data, resolution = my.resolution * 
 
     ## borders.to.plot is more difficult, since it can contain empty elements
     valid.vectors <- sapply(1:length(prepared.data), function(j) {
+        if(is.null(prepared.data[[j]][[4]])){
+            return(NULL)
+        }
         sv <- terra::unwrap(prepared.data[[j]][[4]])
         if (geomtype(sv) == "polygons") return(sv) else return(NULL)
     }, simplify = FALSE)
@@ -647,20 +792,32 @@ Create data suitable for kriging exposure to IPV in Asia.
 
 <<exposure-asia-prepare>>=
 my.resolution = 10000
-asia.exposure.input.data <- foreach::foreach(set = list(india.et.al, philippines, cambodia),
+
+remove.empty.elements.f <- function(lst) {
+  lst[!sapply(lst, function(x) length(x) == 0)]
+}
+
+asia.exposure.input.data <- remove.empty.elements.f(foreach::foreach(set = list(india.et.al, philippines, cambodia),
         .options.future = list(scheduling = TRUE,
                                seed = TRUE,
                                packages = c("data.table", "globallivingconditions"))
-        ) %dofuture% generate.input.data.for.kriging.f(my.set = set, my.var = "viol01_cluster", my.clean.dt = viol01_cluster, my.cell.width = my.resolution, country.borders.to.ignore = c("India", "Cambodia", "Philippines"))
+        ) %dofuture% { print(paste(set)); generate.input.data.for.kriging.f(my.set = set, my.var = "viol01_cluster", my.clean.dt = viol01_cluster, my.cell.width = my.resolution, country.borders.to.ignore = c("India", "Cambodia", "Philippines")) })
 @
 
-Calculate IPV exposure in Asia. Serialise to make the results cacheable. (Raster objects consist of pointers to objects store on disk, these pointers are locally defined and become invalid when the function returns. To avoid this, the function «wrap()« makes a full copy of the raster object to RAM. When these objects are later used, «unwrap()« has to be applied to make them ordinary raster objects again. Together «wrap()« and «unwrap()« are essential whenever a function is returning raster objects or when working with «knitr« which caches the results of chunks to avoid having to redo the computations every time the source is compiled to a \LaTeX document).
+Calculate IPV exposure in Asia. Serialise to make the results cacheable. (Raster objects consist of pointers to objects stored on disk, these pointers are locally defined and become invalid when the function returns. To avoid this, the function «wrap()« makes a full copy of the raster object to RAM. When these objects are later used, «unwrap()« has to be applied to make them ordinary raster objects again. Together «wrap()« and «unwrap()« are essential whenever a function is returning raster objects or when working with «knitr« which caches the results of chunks to avoid having to redo the computations every time the source is compiled to a \LaTeX document).
 
 <<asia-IPV-exposure-calc, dependson="kriging.full.pipeline">>=
 results <- kriging.full.pipeline.f(asia.exposure.input.data, regularisation.factor = 1)
-serializable.raster <- terra::wrap(results[[1]])
-serializable.border <- terra::wrap(results[[2]])
-
+if(is.null(results[[1]]) == FALSE){
+    serializable.raster <- terra::wrap(results[[1]])
+} else {
+    serializable.raster <- NULL
+}
+if(is.null(results[[2]]) == FALSE){
+    serializable.border <- terra::wrap(results[[2]])
+} else {
+    serializable.border <- NULL
+}
 @
 
 Calculate sample size for Exposure in Asia
@@ -694,12 +851,14 @@ Plot exposure to IPV in Asia.
 my.palette.f <- grDevices::colorRampPalette(c("blue", "white", "red"))
 my.raster <- terra::clamp(unwrap(serializable.raster),
                           lower=0, upper=1, values=TRUE)
-my.borders <- unwrap(serializable.border)
 terra::plot(my.raster, col = my.palette.f(101), range = c(0, 1),
             plg = list(at = seq(from = 0, to = 1, by = 0.1)),
             axes = TRUE, ylim = c(4, 38), xlim = c(60, 127))
 ## terra::contour(my.raster, add = TRUE, levels = c(0.25, 0.5, 0.75))
-plot(my.borders, add = TRUE, col = NA, border = "darkgreen", lwd = 2)
+if(is.null(serializable.border) == FALSE){
+    my.borders <- unwrap(serializable.border)
+    plot(my.borders, add = TRUE, col = NA, border = "darkgreen", lwd = 2)
+}
 
 ## add adjacent countries with no data in gray
 ## world$admin has names, but not proper names according to iso.3166
@@ -725,23 +884,34 @@ n.surveys.attitudes.asia <- length(unique(sapply(strsplit(as.character(my.dt.cle
 @ 
 
 <<asia-IPV-attitudes-calc>>=
-asia.attitudes.input.data <- foreach::foreach(set = list(india.et.al, philippines, cambodia),
+asia.attitudes.input.data <- remove.empty.elements.f(foreach::foreach(set = list(india.et.al, philippines, cambodia),
         .options.future = list(scheduling = TRUE,
                                seed = TRUE,
                                packages = c("data.table", "globallivingconditions"))
-        ) %dofuture% generate.input.data.for.kriging.f(my.set = set, my.var = "justifyIPV_cluster", my.clean.dt = justifyIPV_cluster, my.cell.width = my.resolution, country.borders.to.ignore = c("India", "Cambodia", "Philippines"))
+        ) %dofuture% generate.input.data.for.kriging.f(my.set = set, my.var = "justifyIPV_cluster", my.clean.dt = justifyIPV_cluster, my.cell.width = my.resolution, country.borders.to.ignore = c("India", "Cambodia", "Philippines")))
 results <- kriging.full.pipeline.f(asia.attitudes.input.data, regularisation.factor = 1)
-serializable.raster <- terra::wrap(results[[1]])
-serializable.border <- terra::wrap(results[[2]])
+
+if(is.null(results[[1]]) == FALSE){
+    serializable.raster <- terra::wrap(results[[1]])
+} else {
+    serializable.raster <- NULL
+}
+if(is.null(results[[2]]) == FALSE){
+    serializable.border <- terra::wrap(results[[2]])
+} else {
+    serializable.border <- NULL
+}
 
 @
 
 <<asia-IPV-attitudes-plot, fig.cap = paste0("Estimated proportion of women in the local area who think IPV can be justified, Asia. Pakistan, India, Nepal, Myanmar, Cambodia and Philippines. Country borders in darkgreen, and countries without data in gray. Number of women = ", n.persons.attitudes.asia, ", number of local areas = ", n.local.areas.attitudes.asia, ". Kriging performed on data compiled from ", n.surveys.attitudes.asia, " surveys funded by the DHS."), fig.width = 9, fig.height = 5>>=
-my.raster <- terra::clamp(unwrap(serializable.raster), lower=0, upper=1, values=TRUE)
-my.borders <- unwrap(serializable.border)
+my.raster <- terra::clamp(terra::unwrap(serializable.raster), lower=0, upper=1, values=TRUE)
 terra::plot(my.raster, col = my.palette.f(101), range = c(0, 1), plg = list(at = seq(from = 0, to = 1, by = 0.1)), axes = TRUE, ylim = c(4, 38), xlim = c(60, 127))
 ## terra::contour(my.raster, add = TRUE, levels = c(0.25, 0.5, 0.75))
-plot(my.borders, add = TRUE, col = NA, border = "darkgreen", lwd = 2)
+if(is.null(serializable.border) == FALSE){
+    my.borders <- unwrap(serializable.border)
+    plot(my.borders, add = TRUE, col = NA, border = "darkgreen", lwd = 2)
+}
 add.gray.countries <- c("Bangladesh", "Viet Nam", "Lao People's Democratic Republic", "Thailand")
 world <- rnaturalearth::ne_countries(scale = 50, returnclass = "sv")
 gray.countries <- world[as.numeric(world$iso_n3_eh) %in% iso.3166$numeric[match(add.gray.countries, iso.3166$String)], ]
@@ -752,35 +922,43 @@ plot(gray.countries, col = "gray80", add = TRUE, border = "darkgreen", lwd = 0.5
 Repeat with African countries.
 
 <<africa-IPV-attitudes-calc>>=
-africa.attitudes.input.data <- foreach::foreach(set = list(Madagascar, Egypt, South.and.east, West),
+africa.attitudes.input.data <- remove.empty.elements.f(foreach::foreach(set = list(Madagascar, Egypt, South.and.east, West),
         .options.future = list(scheduling = TRUE,
                                seed = TRUE,
                                packages = c("data.table", "globallivingconditions"))
-        ) %dofuture% generate.input.data.for.kriging.f(my.set = set, my.var = "justifyIPV_cluster", my.clean.dt = justifyIPV_cluster, my.cell.width = my.resolution, country.borders.to.ignore = c("Egypt", "Madagascar"))
-results <- kriging.full.pipeline.f(africa.attitudes.input.data, regularisation.factor = 1)
-serializable.raster <- terra::wrap(results[[1]])
-serializable.border <- terra::wrap(results[[2]])
+        ) %dofuture% generate.input.data.for.kriging.f(my.set = set, my.var = "justifyIPV_cluster", my.clean.dt = justifyIPV_cluster, my.cell.width = my.resolution, country.borders.to.ignore = c("Egypt", "Madagascar")))
+results <- kriging.full.pipeline.f(africa.attitudes.input.data, regularisation.factor = 5)
+
+if(is.null(results[[1]]) == FALSE){
+    serializable.raster <- terra::wrap(results[[1]])
+} else {
+    serializable.raster <- NULL
+}
+if(is.null(results[[2]]) == FALSE){
+    serializable.border <- terra::wrap(results[[2]])
+} else {
+    serializable.border <- NULL
+}
 
 @
 
 Calculate sample sizes for the African continent.
 
 <<sample.size.africa, tidy = FALSE>>=
-countries.codes.africa <- iso.3166$String.code[match(c(Madagascar, Egypt,
-                                 West, South.and.east), iso.3166$String)]
-n.persons.attitudes.africa <- my.dt.clean[country %in% countries.codes.africa,
+countries.africa <- c(Madagascar, Egypt, West, South.and.east)
+n.persons.attitudes.africa <- my.dt.clean[country %in% countries.africa &
+                                        is.na(lon) == FALSE,
                                length(which(is.na(beat01_couple) == FALSE)), ]
-n.local.areas.attitudes.africa <- my.dt.clean[country %in% countries.codes.africa
-  & is.na(beat01_couple) == FALSE, length(unique(cluster1)), ]
+n.local.areas.attitudes.africa <- my.dt.clean[country %in% countries.africa &
+ is.na(lon) == FALSE & is.na(beat01_couple) == FALSE, length(unique(cluster1)), ]
 n.surveys.attitudes.africa <- length(unique(sapply(strsplit(as.character(
-    my.dt.clean[country %in% countries.codes.africa &
+    my.dt.clean[country %in% countries.africa & is.na(lon) == FALSE &
                 is.na(beat01_couple) == FALSE, cluster1]),
     ".", fixed = TRUE), function(x) { paste(x[c(1, 3)], collapse = ".") })))
 @ 
 
 <<africa-IPV-attitudes-plot, fig.cap = paste0("Estimated proportion of women in the local area who think IPV can be justified, Africa. Country borders in darkgreen, and countries without data in gray. Number of women = ", n.persons.attitudes.africa, ", number of local areas = ", n.local.areas.attitudes.africa, ". Kriging performed on data compiled from ", n.surveys.attitudes.africa, " surveys funded by the DHS."), fig.width = 5, fig.height = 5, fig.align = "center">>=
 my.raster <- terra::clamp(terra::unwrap(serializable.raster), lower=0, upper=1, values=TRUE)
-my.borders <- terra::unwrap(serializable.border)
 
 ## Load and unserialize the raster vector for the whole of Africa
 load(paste0(africa.map.path, "africa-lowres.RData"))
@@ -796,36 +974,50 @@ terra::plot(africa, col = "gray80", add = TRUE)
 terra::plot(my.raster, col = my.palette.f(101), range = c(0, 1), add = TRUE)
 
 ## Add the relevant borders
-terra::plot(my.borders, add = TRUE, col = NA, border = "darkgreen", lwd = 1)
+if(is.null(serializable.border) == FALSE){
+    my.borders <- terra::unwrap(serializable.border)
+    terra::plot(my.borders, add = TRUE, col = NA, border = "darkgreen", lwd = 2)
+}
 
 @
 
 Calculate sample sizes for exposure to IPV in Africa.
 
 <<sample.size.exposure.africa, tidy = FALSE>>=
-countries.codes.africa <- iso.3166$String.code[match(c(Madagascar, Egypt,
-                                 West, South.and.east), iso.3166$String)]
-n.persons.exposure.africa <- my.dt.clean[country %in% countries.codes.africa,
+n.persons.exposure.africa <- my.dt.clean[country %in% countries.africa &
+                                        is.na(lon) == FALSE,
                                length(which(is.na(viol01_wife) == FALSE)), ]
-n.local.areas.exposure.africa <- my.dt.clean[country %in% countries.codes.africa
-  & is.na(viol01_wife) == FALSE, length(unique(cluster1)), ]
+n.local.areas.exposure.africa <- my.dt.clean[country %in% countries.africa &
+                                             is.na(lon) == FALSE &
+                                             is.na(viol01_wife) == FALSE,
+                                             length(unique(cluster1)), ]
 n.surveys.exposure.africa <- length(unique(sapply(strsplit(as.character(
-    my.dt.clean[country %in% countries.codes.africa &
-                is.na(viol01_wife) == FALSE, cluster1]),
+    my.dt.clean[country %in% countries.africa &
+                is.na(viol01_wife) == FALSE &
+                is.na(lon) == FALSE, cluster1]),
     ".", fixed = TRUE), function(x) { paste(x[c(1, 3)], collapse = ".") })))
 @ 
 
 Perform kriging on exposure to IPV in Africa.
 
 <<africa-IPV-exposure-calc>>=
-africa.exposure.input.data <- foreach::foreach(set = list(Madagascar, Egypt, South.and.east, West),
+africa.exposure.input.data <- remove.empty.elements.f(foreach::foreach(set = list(Madagascar, Egypt, South.and.east, West),
         .options.future = list(scheduling = TRUE,
                                seed = TRUE,
                                packages = c("data.table", "globallivingconditions"))
-        ) %dofuture% generate.input.data.for.kriging.f(my.set = set, my.var = "viol01_cluster", my.clean.dt = viol01_cluster, my.cell.width = my.resolution, country.borders.to.ignore = c("Egypt", "Madagascar"))
-results <- kriging.full.pipeline.f(africa.exposure.input.data, regularisation.factor = 1)
-serializable.raster <- terra::wrap(results[[1]])
-serializable.border <- terra::wrap(results[[2]])
+        ) %dofuture% generate.input.data.for.kriging.f(my.set = set, my.var = "viol01_cluster", my.clean.dt = viol01_cluster, my.cell.width = my.resolution, country.borders.to.ignore = c("Egypt", "Madagascar")))
+results <- kriging.full.pipeline.f(africa.exposure.input.data, regularisation.factor = 5)
+
+if(is.null(results[[1]]) == FALSE){
+    serializable.raster <- terra::wrap(results[[1]])
+} else {
+    serializable.raster <- NULL
+}
+if(is.null(results[[2]]) == FALSE){
+    serializable.border <- terra::wrap(results[[2]])
+} else {
+    serializable.border <- NULL
+}
 
 @
 
@@ -833,7 +1025,6 @@ Plot exposure to IPV in Africa.
 
 <<africa-IPV-exposure-plot, fig.cap = paste0("Proportion women in the local area who have exposed to violence by their current husband, Africa. Country borders in darkgreen, and countries without data in gray. Number of women = ", n.persons.exposure.africa, ", number of local areas = ", n.local.areas.exposure.africa, ". Kriging performed on data compiled from ", n.surveys.exposure.africa, " surveys funded by the DHS."), fig.width = 5, fig.height = 5, fig.align = "center">>=
 my.raster <- terra::clamp(terra::unwrap(serializable.raster), lower=0, upper=1, values=TRUE)
-my.borders <- terra::unwrap(serializable.border)
 
 ## Load and unserialize the raster vector for the whole of Africa
 load(paste0(africa.map.path, "africa-lowres.RData"))
@@ -849,7 +1040,10 @@ terra::plot(africa, col = "gray80", add = TRUE)
 terra::plot(my.raster, col = my.palette.f(101), range = c(0, 1), add = TRUE)
 
 ## Add the relevant borders
-terra::plot(my.borders, add = TRUE, col = NA, border = "darkgreen", lwd = 1)
+if(is.null(serializable.border) == FALSE){
+    my.borders <- unwrap(serializable.border)
+    plot(my.borders, add = TRUE, col = NA, border = "darkgreen", lwd = 2)
+}
 
 @ 
 
@@ -864,7 +1058,7 @@ Start python.
 knitr::opts_chunk$set(python.reticulate=TRUE)
 library(reticulate)
 reticulate::use_python(path.to.python, required = TRUE)
-use_virtualenv("/mimer/NOBACKUP/groups/globalpoverty1/hans/.my-venv")
+## use_virtualenv("/mimer/NOBACKUP/groups/globalpoverty1/hans/.my-venv")
 reticulate::py_run_string("import pymc as mc")
 @ 
 
@@ -884,12 +1078,12 @@ import os
 os.environ["XLA_PYTHON_CLIENT_ALLOCATOR"] = "platform"
 
 import jax
-jax.default_backend()
+
 @
 
 Load the data from a «CSV«-file. % Prepare a slice to print since actual printing works better in R.
 
-<<python.2.load.data, engine='python', warnings = TRUE, results = 'markup', cache = FALSE>>=
+<<python.2.load.data, engine='python', warnings = TRUE, results = 'markup', cache = TRUE>>=
 df = pd.read_csv("ipv-women2.csv", low_memory=False)
 @
 
@@ -898,7 +1092,7 @@ df = pd.read_csv("ipv-women2.csv", low_memory=False)
 
 Create an index starting from zero for each random term, the model will include a random intercept for «country« and for «cluster1«, and save the labels. Here the function «factorize()« from «pandas« is used.
 
-<<spline-data.preparation.random.effects, engine='python', results = 'markup', cache = FALSE>>=
+<<spline-data.preparation.random.effects, engine='python', results = 'markup', cache = TRUE>>=
 country_index, country_name = df["country"].factorize()
 df["country_data"] = df["country"].astype("category").cat.codes
 
@@ -911,41 +1105,46 @@ df["cluster_id_unique_data"] = df["cluster1"].astype("category").cat.codes
 
 The «pandas« library in «python« has a function to create dummy variables, «get\_dummies()«. The argument «drop\_first=False« keeps the original columns, which often makes sense since otherwise the first value that happens to appear becomes the reference category. While the choice of reference category is generally not so important, in general make sure to choose a category that do not suffer from complete separation in an interaction term, since that makes the model fitting unnecessary hard. In this particular case, complete separation is not a concern.
 
-<<spline-data.preparation.dummy.variables, engine='python', results = 'markup', cache = FALSE>>=
-## ## Iliterate_couple is not yet available
-## dummy_vars = ["beat01_couple", "decide2_health", "decide2_purchases", "edudeviation", "v149", "iliterate_couple"]
+%% Iliterate_couple is not yet available
 
-# List of specific categorical variables to convert to dummies
+Create a list of specific categorical variables to convert to dummies.
+
+<<spline-data.preparation.dummy.variables, engine='python', cache = TRUE>>=
 dummy_vars = ["beat01_couple", "decide2_health", "decide2_purchases", "edudeviation", "v149"]
+@
 
-# Create dummy variables only for the specified columns
+Create dummy variables only for the specified columns.
+
+<<spline-data.preparatation.create.dummy.variables, engine='python', cache = TRUE>>=
 df = pd.get_dummies(df, columns=dummy_vars, prefix=dummy_vars, drop_first=False)
 @
-\section{Create the splines}
+
+
+\subsection{Create the splines}
 For this analysis we use «justifyIPV\_cluster« which captures how large proportion of the other women in the neighbourhood thinks that IPV can be legitimate, as the basis for the splines.
 
 If there are missing values in the dataset, drop rows with «NA« in at least one column.
 
-<<spline-data.preparation.drop.na, engine='python', results = 'markup', cache = FALSE>>=
+<<spline-data.preparation.drop.na, engine='python', results = 'markup', cache = TRUE>>=
 df = df.dropna().reset_index(drop=True)
 @
 
 Sort the rows based on «justifyIPV\_cluster«. This is needed because the code that produces the matrix «B« relies on «df« being in that order. We also need to reset the row names, or they will be used when we later concatenate the two objects into one with «pd.concat()«
 
-<<spline-data.preparation.sort, engine='python', results = 'markup', cache = FALSE>>=
-df = df.sort_values(by='justifyIPV_cluster', ascending=False).reset_index(drop=True)
+<<spline-data.preparation.sort, engine='python', results = 'markup', cache = TRUE>>=
+df=df.sort_values(by='justifyIPV_cluster',ascending=False).reset_index(drop=True)
 @ 
 
 Construct the matrix «B«, and the data frame version of the same data, «spline\_df«. «B« will be used as a model matrix for some of the parameters of the model, while «spline\_df« is convenient to have when we inspect the data visually. In the end, we want to replace «justifyIPV\_cluster« with a version of «B«, and for this purpose, «B\_df« is constructed.
 
-<<spline-data.preparation.spline, engine='python', results = 'markup', cache = FALSE>>=
+<<spline-data.preparation.spline, engine='python', results = 'markup', cache = TRUE>>=
 num_knots = 3
 knot_list = np.quantile(df.justifyIPV_cluster, np.linspace(0, 1, num_knots))
 @
 
 The splines is generated by the function \href{https://patsy.readthedocs.io/en/latest/spline-regression.html}{«bs()«}, which is part of the «patsy« library.
 
-<<spline-data-preparation-create-B, engine='python', results = 'markup', cache = FALSE>>=
+<<spline-data-preparation-create-B, engine='python', results = 'markup', cache = TRUE>>=
 B = dmatrix(
     "bs(justifyIPV_cluster, knots=knots, degree=3, include_intercept=False) - 1",
     {"justifyIPV_cluster": df.justifyIPV_cluster.values, "knots": knot_list[1:-1]},
@@ -969,13 +1168,13 @@ for i, c in enumerate(color):
 plt.legend(title="Spline Index", loc="upper center", fontsize=8, ncol=6);
 @
 
-<<spline-data.preparation.create.B_df, engine='python', results = 'markup', cache = FALSE>>=
+<<spline-data.preparation.create.B_df, engine='python', results = 'markup', cache = TRUE>>=
 B_df = pd.DataFrame(B, columns=[f"spline, {i}" for i in range(B.shape[1])])
 @
 
 In the final model, «B\_df« will replace «justifyIPV\_cluster«, and while it would be possible to refer to them as they are, it is \emph{convenient} to have single unified data object, especially as we want to predict using R later on. Such a unified data frame is aquired by concatenating «df« and «B\_df«.
 
-<<spline-data.preparation.concatenate.B.and.df, engine='python', results = 'markup', cache = FALSE>>=
+<<spline-data.preparation.concatenate.B.and.df, engine='python', results = 'markup', cache = TRUE>>=
 df = pd.concat([df, B_df], axis=1)
 @
 
@@ -983,12 +1182,12 @@ With that in place we can inspect how a given value of «justifyIPV\_cluster« t
 
 <<spline-create-new-slice, engine='python', cache = TRUE, echo = TRUE, results = "markup">>=
 unique_rows = df.drop_duplicates(subset='justifyIPV_cluster').head(6)
-my_tab_2 = unique_rows.iloc[:5, np.hstack((5, range(len(unique_rows.columns)-(num_knots + 1), len(unique_rows.columns))))]
+my_tab_2 = unique_rows.iloc[:5, np.hstack((df.columns.get_loc("justifyIPV_cluster"), range(len(unique_rows.columns)-(num_knots + 1), len(unique_rows.columns))))]
 @
 
 <<spline-print.sorted.table, results='asis', echo = FALSE, cache = TRUE, dependson = "spline-create-new-slice">>=
 library(xtable)
-print(xtable(py$my_tab_2, caption = "justifyIPV\\_cluster and some of the columns that will replace it in the model. These rows represents the right most part of figure \\vref{fig:spline-data-preparation-inspect-spline}; at 0.98 the last curve is at value 0.5927 and the second curve is at value 0.3720.", digits = 4, label = "tab:splines"), booktabs = TRUE)
+print(xtable(py$my_tab_2, caption = "justifyIPV\\_cluster and some of the columns that will replace it in the model. These rows represents the right most part of figure \\vref{fig:spline-data-preparation-inspect-spline}.", digits = 4, label = "tab:splines"), booktabs = TRUE, include.rownames = FALSE)
 @
 
 Save the model matrix for predictions in «R«. 
@@ -997,25 +1196,25 @@ Save the model matrix for predictions in «R«.
 df.to_csv("ipv-women-model_matrix.csv", index=False)
 @ 
 
-\section{Create the model}
-The splines are also ``just ordinary'' $\beta$-coefficients. There is one thing that goes beyond the standard model though, the interaction between «beat01\_couple« and «justifyIPV\_cluster«, and since the latter is substituted by the splines in the model, it is worth spelling out how that is done. Consider table \vref{tab:splines}, which shows the values of «justifyIPV\_cluster« and the splines. Let us define $x_{1}, x_{2} and x_{3}$ as spline 0, spline 1 and spline 2 respectively. The other variable in the interaction, «beat01\_couple«, is also substituted in the model, in this case to dummy variables representing ``Wife justifys IPV'', ``Husband justifys IPV'', ``Both justify IPV'', let us say $x_{4}, x_{5}$ and $x_{6}$. Ignoring the other variables in the model, the variables relevant for «beat01\_couple« and «justifyIPV\_cluster« could be classified into three parts:
+\subsection{Create the model}
+The splines are also ``just ordinary'' $\beta$-coefficients. There is one thing that goes beyond the standard model though, the interaction between «beat01\_couple« and «justifyIPV\_cluster«, and since the latter is substituted by the splines in the model, it is worth spelling out how that is done. Consider table \vref{tab:splines}, which shows the values of «justifyIPV\_cluster« and the splines. Let us define $x_{1}, x_{2}$ and $x_{3}$ as spline 0, spline 1 and spline 2 respectively. The other variable in the interaction, «beat01\_couple«, is also substituted in the model, in this case to dummy variables representing ``Wife justifys IPV'', ``Husband justifys IPV'', ``Both justify IPV'', let us say $x_{4}, x_{5}$ and $x_{6}$. Ignoring the other variables in the model, the variables relevant for «beat01\_couple« and «justifyIPV\_cluster« could be classified into three parts:
 
 \begin{description}
   \item[spline 0] ${x_1} \beta{1}$
   \item[spline 1] ${x_2} \beta{2}$
   \item[spline 2] ${x_3} \beta{3}$
-  \item[Wife justifys IPV] ${x_4} \beta{4}$
-  \item[Husband justifys IPV] ${x_5} \beta{5}$
+  \item[Only Wife justifys IPV] ${x_4} \beta{4}$
+  \item[Only Husband justifys IPV] ${x_5} \beta{5}$
   \item[Both justify IPV] ${x_6} \beta{6}$
-  \item[spline 0, Wife justifys IPV] $x_{1} x_{4} \beta_{7}$
-  \item[spline 1, Wife justifys IPV] $x_{2} x_{4} \beta_{8}$
-  \item[spline 2, Wife justifys IPV] $x_{3} x_{4} \beta_{9}$
-    \item[spline 0, Husband justifys IPV] $x_{1} x_{5} \beta_{10}$
-  \item[spline 1, Husband justifys IPV] $x_{2} x_{5} \beta_{11}$
-  \item[spline 2, Husband justifys IPV] $x_{3} x_{5} \beta_{12}$    
-    \item[spline 0, Both justifys IPV] $x_{1} x_{6} \beta_{13}$
-  \item[spline 1, Both justifys IPV] $x_{2} x_{6} \beta_{14}$
-  \item[spline 2, Both justifys IPV] $x_{3} x_{6} \beta_{15}$    
+  \item[spline 0, Only Wife justifys IPV] $x_{1} x_{4} \beta_{7}$
+  \item[spline 1, Only Wife justifys IPV] $x_{2} x_{4} \beta_{8}$
+  \item[spline 2, Only Wife justifys IPV] $x_{3} x_{4} \beta_{9}$
+    \item[spline 0, Only Husband justifys IPV] $x_{1} x_{5} \beta_{10}$
+  \item[spline 1, Only Husband justifys IPV] $x_{2} x_{5} \beta_{11}$
+  \item[spline 2, Only Husband justifys IPV] $x_{3} x_{5} \beta_{12}$    
+    \item[spline 0, Both justify IPV] $x_{1} x_{6} \beta_{13}$
+  \item[spline 1, Both justify IPV] $x_{2} x_{6} \beta_{14}$
+  \item[spline 2, Both justify IPV] $x_{3} x_{6} \beta_{15}$    
 \end{description}
 
   Note that the first three rows above, ("spline 0", "spline 1" and "spline 2") will characterise the effect of  «justifyIPV\_cluster« for the couples where "No one justifys IPV", ie the reference category. Similarly, row 4-6 capture the effect of the attitudes of the couple in the scenario where «justifyIPV\_cluster« is zero.
@@ -1118,46 +1317,50 @@ Now that the priors are defined, inform pymc about where to find the data for th
 
 <<spline-fit-model-7, engine = "python", results = "markup", cache = TRUE>>=
 with my_model:
-    Z_country = pm.ConstantData("Z_country", df["country_data"])
-    Z_cluster = pm.ConstantData("Z_cluster", df["cluster_id_unique_data"])
+    Z_country = pm.Data("Z_country", df["country_data"])
+    Z_cluster = pm.Data("Z_cluster", df["cluster_id_unique_data"])
 @
 
 \subsection{Add data to the model object}
 And the data for the fixed effects, first the factors.
 
-%%     X_Wife_iliterate = pm.ConstantData("X_Wife_iliterate", df["_Wife iliterate"])
-    % X_Husband_iliterate = pm.ConstantData("X_Husband_iliterate", df["edudeviation_Husband iliterate"])
-    % X_Both_literate = pm.ConstantData("X_Both_literate", df["_Both literate"])
+%%     X_Wife_iliterate = pm.Data("X_Wife_iliterate", df["_Wife iliterate"])
+    % X_Husband_iliterate = pm.Data("X_Husband_iliterate", df["edudeviation_Husband iliterate"])
+    % X_Both_literate = pm.Data("X_Both_literate", df["_Both literate"])
+
+\scalebox{.75}{\parbox{\textwidth}{
 
 <<spline-fit-model-8, engine = "python", results = "markup", cache = TRUE>>=
 with my_model:
-    X_Husband_justifys_IPV = pm.ConstantData("X_Husband_justifys_IPV", df["beat01_couple_Husband justifys IPV"])
-    X_Wife_justifys_IPV = pm.ConstantData("X_Wife_justifys_IPV", df["beat01_couple_Wife justifys IPV"])
-    X_Both_justifys_IPV = pm.ConstantData("X_Both_justifys_IPV", df["beat01_couple_Both justify IPV"])
-    X_Health_husband_decides = pm.ConstantData("X_Health_husband_decides", df["decide2_health_husband decides"])
-    X_Health_wife_decides = pm.ConstantData("X_Health_wife_decides", df["decide2_health_wife decides"])
-    X_Health_joint_decisions = pm.ConstantData("X_Health_joint_decisions", df["decide2_health_joint decisions"])
-    X_Purchases_husband_decides = pm.ConstantData("X_Purchases_husband_decides", df["decide2_purchases_husband decides"])
-    X_Purchases_wife_decides = pm.ConstantData("X_Purchases_wife_decides", df["decide2_purchases_wife decides"])
-    X_Purchases_joint_decisions = pm.ConstantData("X_Purchases_joint_decisions", df["decide2_purchases_joint decisions"])
-    X_Husband_higher_edu = pm.ConstantData("X_Husband_higher_edu", df["edudeviation_Husband has higher edu."])
-    X_Wife_higher_edu = pm.ConstantData("X_Wife_higher_edu", df["edudeviation_Wife has higher edu."])
-    X_incomplete_primary = pm.ConstantData("X_incomplete_primary", df["v149_Incomplete primary"])
-    X_complete_primary = pm.ConstantData("X_complete_primary", df["v149_Complete primary"])
-    X_incomplete_secondary = pm.ConstantData("X_incomplete_secondary", df["v149_Incomplete secondary"])
-    X_complete_secondary = pm.ConstantData("X_complete_secondary", df["v149_Complete secondary"])
-    X_higher = pm.ConstantData("X_higher", df["v149_Higher"])
+    X_Husband_justifys_IPV = pm.Data("X_Husband_justifys_IPV", df["beat01_couple_Husband justifys IPV"])
+    X_Wife_justifys_IPV = pm.Data("X_Wife_justifys_IPV", df["beat01_couple_Wife justifys IPV"])
+    X_Both_justifys_IPV = pm.Data("X_Both_justifys_IPV", df["beat01_couple_Both justify IPV"])
+    X_Health_husband_decides = pm.Data("X_Health_husband_decides", df["decide2_health_husband decides"])
+    X_Health_wife_decides = pm.Data("X_Health_wife_decides", df["decide2_health_wife decides"])
+    X_Health_joint_decisions = pm.Data("X_Health_joint_decisions", df["decide2_health_joint decisions"])
+    X_Purchases_husband_decides = pm.Data("X_Purchases_husband_decides", df["decide2_purchases_husband decides"])
+    X_Purchases_wife_decides = pm.Data("X_Purchases_wife_decides", df["decide2_purchases_wife decides"])
+    X_Purchases_joint_decisions = pm.Data("X_Purchases_joint_decisions", df["decide2_purchases_joint decisions"])
+    X_Husband_higher_edu = pm.Data("X_Husband_higher_edu", df["edudeviation_Husband has higher edu."])
+    X_Wife_higher_edu = pm.Data("X_Wife_higher_edu", df["edudeviation_Wife has higher edu."])
+    X_incomplete_primary = pm.Data("X_incomplete_primary", df["v149_Incomplete primary"])
+    X_complete_primary = pm.Data("X_complete_primary", df["v149_Complete primary"])
+    X_incomplete_secondary = pm.Data("X_incomplete_secondary", df["v149_Incomplete secondary"])
+    X_complete_secondary = pm.Data("X_complete_secondary", df["v149_Complete secondary"])
+    X_higher = pm.Data("X_higher", df["v149_Higher"])
 @
+
+}}
 
 Then the continuous variables, note that there is no reference to the focal variable «justifyIPV\_cluster«, instead we will use a version of «B«.
 
 <<spline-fit-model-9, engine = "python", results = "markup", cache = TRUE>>=
 with my_model:
-    X_iwi = pm.ConstantData("X_iwi", df["iwi2"])
-    X_lnage_wife = pm.ConstantData("X_lnage_wife", df["lnage_wife"])
-    X_ln_numb_of_children = pm.ConstantData("X_ln_numb_of_children", df["ln_numb_of_children"])
-    X_gdi = pm.ConstantData("X_gdi", df["gdi_s"])
-    X_gni = pm.ConstantData("X_gni", df["gni_s"])
+    X_iwi = pm.Data("X_iwi", df["iwi2"])
+    X_lnage_wife = pm.Data("X_lnage_wife", df["lnage_wife"])
+    X_ln_numb_of_children = pm.Data("X_ln_numb_of_children", df["ln_numb_of_children"])
+    X_gdi = pm.Data("X_gdi", df["gdi_s"])
+    X_gni = pm.Data("X_gni", df["gni_s"])
 @
 
 \subsection{Formulate the regression equation}
@@ -1207,26 +1410,21 @@ Make it a logistic regression by tying the observed value to the model via the B
 <<spline-fit-model-11, engine = "python", results = "markup", cache = TRUE>>=
 with my_model:
     theta_as_probability = pm.invlogit(theta_as_logit)
-    y = pm.ConstantData("y", df["viol01_wife"] == True)
+    y = pm.Data("y", df["viol01_wife"] == True)
     Y_obs = pm.Bernoulli("Y_obs", p=theta_as_probability, observed=y)
 @
 
 \subsection{Start sampling parameter values}
-I think that during the tuning process, the «NUTS« sampler rescale the dimensions of the parameter space, so that the risk of divergencies is reduced and an appropriate step size is calibrated.
-
-If you have a graphical processing unit (GPU) from «nvidia«, then install «jax« with gpu support. The code below will use the «numpyro\_nuts« sampler, which is built on top of «jax«, if «jax« is installed, and fall back to the native «pymc« «NUTS« sampler which uses CPU if «jax« is not installed. To be able to post process the parameter samples, these are saved  to disk with the function «dump()« in the library «pickle«. («batches=2« is my own invention, which reduces the RAM requirements on the GPU).
+To be able to post process the parameter samples, these are saved  to disk with the function «dump()« in the library «pickle«.
 
 % Seems like import pymc.sampling.jax works on system that does not have my custom version of pymc.
+% jax works even if no GPU is available
 
 <<spline-fit-model-12, engine = "python", results = "markup", eval = !file.exists("ipv-women2.pydata"), cache = TRUE>>=
 import pickle
-try:
-    import pymc.sampling.jax
-    with my_model:
-        my_fit_pymc = pm.sampling.jax.sample_numpyro_nuts(random_seed=1234, tune=100, draws=400, target_accept=0.8, chains = 4, chain_method='parallel', progressbar = False, idata_kwargs=dict(log_likelihood=False), postprocessing_backend="cpu")
-except ImportError as e:
-    with my_model:
-        my_fit_pymc = pm.sample(random_seed=1234, tune=200, draws=400, target_accept=0.9, chains = 2, max_treedepth=10, idata_kwargs=dict(log_likelihood=False))
+import pymc.sampling.jax
+with my_model:
+    my_fit_pymc = pm.sampling.jax.sample_numpyro_nuts(random_seed=1234, tune=100, draws=400, target_accept=0.8, chains = 4, chain_method='parallel', progressbar = False, idata_kwargs=dict(log_likelihood=False), postprocessing_backend="cpu")
 pickle.dump(my_fit_pymc, open('ipv-women2.pydata', 'wb'))
 @
 
@@ -1251,16 +1449,28 @@ print(xtable(conv.tab, caption = "High Density Interval (HDI) and convergence st
 @ 
 \end{footnotesize}
 
-Show a trace plot of «couple\_attitudes«, note that these parameters only describe the effect of the attitudes in question when «justifyIPV\_cluster« is at zero, and also note that the reference category is ``No one justifys IVP''. Since there is no legend, this graph is not very informative, but it indicates that the model had enough tuning (or ``burn-in'') since the early samples are at the same level as the last samples; and the large fluctuations between nearby samples indicate that the parameter space is searched thoroughly, see figure \vref{fig:spline-evaluate-model-5}.
+Show a trace plot of «couple\_attitudes«, note that these parameters only describe the effect of the attitudes in question when «justifyIPV\_cluster« is at zero, and also note that the reference category is ``No one justifys IVP''. This graph indicates that the model had enough tuning (or ``burn-in'') since the early samples are at the same level as the last samples; and the large fluctuations between nearby samples indicate that the parameter space is searched thoroughly, see figure \vref{fig:spline-evaluate-model-5}.
 
-<<spline-evaluate-model-5, engine = "python", dev = "png", cache = TRUE, fig.cap = "Trace plot for the attitude of the couple.">>=
+<<spline-evaluate-model-5, engine = "python", dev = "png", cache = TRUE, fig.cap = "Density plot and trace plot for the attitude of the couple (the scale here is logit).">>=
 import pickle
-my_fit_pymc = pickle.load(open("ipv-women2.pydata", "rb"))
 import arviz
-arviz.plot_trace(my_fit_pymc, var_names = ["couple_attitudes"], compact = True)
+import matplotlib.pyplot as plt
+
+my_fit_pymc = pickle.load(open("ipv-women2.pydata", "rb"))
+axes = arviz.plot_trace(my_fit_pymc, var_names = ["couple_attitudes"], compact = True)
+labels = ["Husband justifies IPV", "Wife justifies IPV", "Both justify IPV"]
+k = (len(axes[0, 0].get_lines()) // 3)
+for ax in axes.flatten():
+    lines = ax.get_lines()
+    legend_lines = [lines[0], lines[0 + k], lines[0 + 2 * k]]
+    ax.legend(legend_lines, labels, loc="upper right")
+
+plt.show()
+
 @
 
-\section{Export parameters needed for predictions}
+\section{Predict and visualise the effects}
+\subsection{Export parameters needed for predictions}
 <<spline-export-params, engine = "python", results = "markup", cache = TRUE, eval = !file.exists("ipv-women-sampled-parameters.csv")>>=
 import arviz
 import pickle
@@ -1273,7 +1483,8 @@ df_results.drop(
 df_results.to_csv("ipv-women-sampled-parameters.csv", index=False)
 @
 
-Import both the sampled parameters and the ``model matrix'' and make a clean version of the model matrix that \emph{only} contains the data that corresponds to the columns in params, and is in the \emph{right order}. The column order in the set of sampled parameters is the same order as used then defining the priors in the model.
+\subsection{Import parameters into R}
+Import both the sampled parameters and the ``model matrix'' and make a clean version of the model matrix that \emph{only} contains the data that corresponds to the columns in params, and is in the \emph{right order}. The column order in the set of sampled parameters is alphabetic, except for the Intercept which comes first.
 
 \begin{compactenum}
 \item Intercept
@@ -1336,18 +1547,19 @@ params.matrix <- as.matrix(params)
 mean.matrix <- as.matrix(my.means)
 @
 
+\subsection{Construct the relevant model matrix}
+\label{sec:constr-relev-model}
 Build the grid of values at which to generate predicted probabilities for each level of the factor variable that captures the attitudes of the couple. Even if splines have replaced the variable «justifyIPV\_cluster«, proceed as normal by finding relevant values on «justifyIPV\_cluster«, e.g. all non-extreme half-deciles, and for each interesting value on «justifyIPV\_cluster« find the corresponding set of values by extracting the values for the splines for cases that have the decile value on «justifyIPV\_cluster«. This is why «justifyIPV\_cluster« was retained in the model matrix even if it was not used when the model was fit to data.
 
 <<spline-find-interesting.points>>=
 quantiles <- quantile(ipv.mm$justifyIPV_cluster, probs = seq(from = 0,  to = 1, by = 0.01))
-## match() is not guaranteed to find all quantiles.
+
+## Find the observed value closest to the quantile
 these <- sapply(quantiles, function(x) { which.min(abs(ipv.mm$justifyIPV_cluster - x)) })
 interesting.points.temp <- ipv.mm[these, c("justifyIPV_cluster", my.spline.names)]
 keep.these <- which(duplicated(interesting.points.temp) == FALSE)
 interesting.points <- interesting.points.temp[keep.these, ]
 quantiles <- quantiles[keep.these]
-## interesting.points <- unique(ipv.mm[these, c("justifyIPV_cluster", my.spline.names)])
-## interesting.points <- ipv.mm[match(quantiles, ipv.mm$justifyIPV_cluster), c("justifyIPV_cluster", my.spline.names)]
 @
 
 <<spline-show-interesting.points, echo = FALSE, results="asis", eval = FALSE>>=
@@ -1395,6 +1607,9 @@ mm.by.attitude.f <- function(this.attitude){
 mms <- sapply(c("None justifys IPV", attitudes), mm.by.attitude.f, simplify = FALSE)
 @
 
+\subsection{Predict}
+\label{sec:predict}
+
 Generate the predicted probabilities.
 
 <<spline-predict>>=
@@ -1403,6 +1618,9 @@ results <- sapply(mms, function(my.mm){
     apply(plogis(params.matrix %*% t(my.mm)), 2, quantile, probs = my.probs)
 }, simplify = FALSE)
 @
+
+\subsection{Visualise the effects}
+\label{sec:visualise-effects}
 
 Plot the predicted probabilities.
 
