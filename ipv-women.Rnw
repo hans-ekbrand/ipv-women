@@ -549,11 +549,6 @@ gc(verbose = FALSE)
 
 @
 
-\subsection{Adding data for observations without coordinates}
-\label{sec:adding-data-observ}
-There are countries, e.g. Afghanistan, which have relevant data, but lacks geographical coordinates. To merge these data with external data (the subnational Gender Equity Index GDI and the subnational productivity statistic GNI) used as control variables in the regression requires another strategy.
-
-
 \section{Mapping IPV - Exposure and Attitudes }
 
 Apply \href{Kriging}{https://en.wikipedia.org/wiki/Kriging} on the data. Kriging gives a predicted smooth surface for the estimate of the dependent variable in an area. While Kriging can use (multiple) independent variables in this estimation, here it is used without any independent variables, so the input data used is only the coordinates the observations, and the observed value on the dependent variable at those coordinates. The procedure is applied on two different outcomes, the proportion of women in local area who thinks IPV can be justified, and the proportion of women in the local area that have experienced IPV by their current husband. Technically, Kriging predicts values for a large number of points in a grid covering the area of interest, and the resolution of the grid, the width and height of each cell, was set to 10 kilometers, i.e. 100 square kilometers. Disconnected areas, e.g. islands, were estimated separately while all adjacent countries were estimated together. For South east Asia, the total number of cells for which we estimated a value is 64287; Africa and Madagascar covered [fill in number here].
@@ -1431,7 +1426,7 @@ To be able to post process the parameter samples, these are saved  to disk with 
 import pickle
 import pymc.sampling.jax
 with my_model:
-    my_fit_pymc = pm.sampling.jax.sample_numpyro_nuts(random_seed=1234, tune=100, draws=400, target_accept=0.80, chains = 4, chain_method='parallel', progressbar = False, idata_kwargs=dict(log_likelihood=False), postprocessing_backend="cpu")
+    my_fit_pymc = pm.sampling.jax.sample_numpyro_nuts(random_seed=1234, tune=100, draws=500, target_accept=0.80, chains = 2, chain_method='parallel', progressbar = False, idata_kwargs=dict(log_likelihood=False), postprocessing_backend="cpu")
 pickle.dump(my_fit_pymc, open('ipv-women2.pydata', 'wb'))
 @
 
@@ -1655,7 +1650,7 @@ plot(y = results[["None justifys IPV"]]["50%",],
      xlab = "Neighbourhood justification of IPV",
      ylab = "Probability of IPV",
      type = "l", col = "red", ylim = c(min(unlist(results)), max(unlist(results))),
-     lwd = 3)
+     lwd = 1)
 grid()
 my.cols <- c("red", "darkgreen", "lightgreen", "orange")
 my.alpha.cols <- sapply(my.cols, transparent, alpha = 0.6)
@@ -1665,7 +1660,7 @@ for(i in 1:length(my.names)){
             x = c(interesting.points[["justifyIPV_cluster"]], rev(interesting.points[["justifyIPV_cluster"]])), col = my.alpha.cols[i], border = NA)
     lines(y = results[[my.names[i]]]["50%",],
           x = interesting.points[["justifyIPV_cluster"]],
-          col = my.cols[i], lwd = 3, lty = 1)
+          col = my.cols[i], lwd = 1, lty = 1)
 }
 
 legend("right",
@@ -1673,7 +1668,7 @@ legend("right",
        legend = c("No one justifies IPV", "Husband justifies IPV", 
                   "Wife justifies IPV", "Wife & husband justify IPV"), 
        col = c("red", "lightgreen", "orange", "darkgreen"), 
-       lwd = 3, 
+       lwd = 2, 
        lty = 1, 
        bty = "n", 
        ncol = 1,
