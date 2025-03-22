@@ -54,6 +54,7 @@ if(Sys.info()["sysname"] == "Windows"){
 \section{Install software}
 To compile this document, including rendering the graphs, a working «R« and «Python/PYMC« installation is assumed. If run a on High-performance computing (HPC) cluster with restrictions on software installation that inhibits on the fly installation of needed «R« and «Python« packages, make sure the following packages are installed.
 
+<<install.packages, cache = FALSE>>=
 ## Install necessary R packages
 required.packages <- c("lme4", "data.table", "xtable", "effects", "parallel", "future", "doFuture", "foreach", "sf", "terra", "parallelly", "cooltools", "raster", "formatR", "lwgeom", "autoFRK", "rnaturalearthdata", "rnaturalearth", "spatstat.geom", "spatstat.random")
 for(package in required.packages){
@@ -327,6 +328,10 @@ my.dt[which(husband.is.illiterate & wife.is.illiterate), couple.is.illiterate :=
 my.dt[which(husband.is.illiterate & (wife.is.illiterate == FALSE)), couple.is.illiterate := "Only wife can read", ]
 my.dt[which((husband.is.illiterate == FALSE) & wife.is.illiterate), couple.is.illiterate := "Only husband can read", ]
 my.dt[which((husband.is.illiterate == FALSE) & (wife.is.illiterate == FALSE)), couple.is.illiterate := "Both can read", ]
+## clean up
+my.dt[, man.is.illiterate := NULL, ]
+my.dt[, husband.is.illiterate := NULL, ]
+my.dt[, wife.is.illiterate := NULL, ]
 
 ## For all data points that we have coordinates for, we use
 ## point-in-polygon techniques to match Subnational GDI and
@@ -531,7 +536,6 @@ my.dt <- my.dt.temp
 save(my.dt, file = "full.set.RData")
 
 ## Create the two sets needed for kriging: these need to have
-<<install.packages, cache = FALSE>>=
 ## non-missing on lon, lat, but justifyIPV_cluster does not require
 ## the cases to have non-missing on viol01_cluster. Since
 ## justifyIPV_cluster is asked in more surveys, use that extra data!
@@ -540,7 +544,7 @@ justifyIPV_cluster <- my.dt[which(! is.na(lon) & ! is.na(justifyIPV_cluster)), l
 viol01_cluster <- my.dt[which(! is.na(lon) & ! is.na(viol01_cluster)), list(country.code.ISO.3166.alpha.3, lon, lat, viol01_cluster), ]
 
 ## clean up
-rm(my.dt, my.dt.temp, my.temp.set.4, my.temp.set.3, my.temp.set.2, my.temp.set, gdi, gni, gdi.clean, gni.clean, gdi.long, gni.long, my.cols, my.map, unique.pts.clean, unique.pts, indices, gdl.polygons, gdl.classification, gdl.codes, sf_points, education.levels.ordered)
+rm(my.dt, my.dt.temp, my.temp.set.4, my.temp.set.3, my.temp.set.2, my.temp.set, gdi, gni, gdi.clean, gni.clean, gdi.long, gni.long, my.cols, my.map, unique.pts.clean, unique.pts, indices, gdl.polygons, gdl.classification, gdl.codes, sf_points, education.levels.ordered, Afghanistan.Region.ID.from.dhs, afghanistan, afghanistan.level1.projected, afghanistan.coordinates)
 gc(verbose = FALSE)
 
 @
@@ -1111,12 +1115,10 @@ df["cluster_id_unique_data"] = df["cluster1"].astype("category").cat.codes
 
 The «pandas« library in «python« has a function to create dummy variables, «get\_dummies()«. The argument «drop\_first=False« keeps the original columns, which often makes sense since otherwise the first value that happens to appear becomes the reference category. While the choice of reference category is generally not so important, in general make sure to choose a category that do not suffer from complete separation in an interaction term, since that makes the model fitting unnecessary hard. In this particular case, complete separation is not a concern.
 
-%% Iliterate_couple is not yet available
-
 Create a list of specific categorical variables to convert to dummies.
 
 <<spline-data.preparation.dummy.variables, engine='python', cache = TRUE>>=
-dummy_vars = ["beat01_couple", "decide2_health", "decide2_purchases", "edudeviation", "v149"]
+dummy_vars = ["beat01_couple", "decide2_health", "decide2_purchases", "edudeviation", "v149", "couple.is.illiterate"]
 @
 
 Create dummy variables only for the specified columns.
@@ -1249,7 +1251,7 @@ coords={
     "decide_health_dims" : ["Health - husband decides", "Health - wife decides", "Healt - joint decisions"],
     "decide_purchase_dims" : ["Purchase - husband decides", "Purchase - wife decides", "Purchase - joint decisions"],
     "edudeviation_dims" : ["Husband has higer edu.", "Wife has higher edu."],
-    "literate_couple_dims" : ["Husband iliterate", "Wife iliterate", "Both literate"],
+    "literate_couple_dims" : ["Only husband can read", "Only wife can read", "No one can read"],
     "1|country_dims" : list(country_name),
     "1|cluster_dims" : list(cluster_name),
     "splines_dims": np.arange(B.shape[1])
@@ -1298,6 +1300,7 @@ with my_model:
     decide_health = pm.Normal("decide_health", mu=0, sigma=5, dims = "decide_health_dims")
     decide_purchase = pm.Normal("decide_purchase", mu=0, sigma=5, dims = "decide_purchase_dims")
     edudeviation = pm.Normal("edudeviation", mu=0, sigma=5, dims = "edudeviation_dims")
+    illiterate_couple = pm.Normal("illiterate_couple", mu=0, sigma=5, dims = "literate_couple_dims")
 @
 
 More fixed effects priors, now the continuous variables.
@@ -1330,11 +1333,7 @@ with my_model:
 \subsection{Add data to the model object}
 And the data for the fixed effects, first the factors.
 
-%%     X_Wife_iliterate = pm.Data("X_Wife_iliterate", df["_Wife iliterate"])
-    % X_Husband_iliterate = pm.Data("X_Husband_iliterate", df["edudeviation_Husband iliterate"])
-    % X_Both_literate = pm.Data("X_Both_literate", df["_Both literate"])
-
-\scalebox{.75}{\parbox{\textwidth}{
+\scalebox{.85}{\parbox{\textwidth}{
 
 <<spline-fit-model-8, engine = "python", results = "markup", cache = TRUE>>=
 with my_model:
@@ -1354,6 +1353,10 @@ with my_model:
     X_incomplete_secondary = pm.Data("X_incomplete_secondary", df["v149_Incomplete secondary"])
     X_complete_secondary = pm.Data("X_complete_secondary", df["v149_Complete secondary"])
     X_higher = pm.Data("X_higher", df["v149_Higher"])
+    X_only_husband_can_read = pm.Data("X_only_husband_can_read", df["couple.is.illiterate_Only husband can read"])
+    X_only_wife_can_read = pm.Data("X_only_wife_can_read", df["couple.is.illiterate_Only wife can read"])
+    X_no_one_can_read = pm.Data("X_no_one_can_read", df["couple.is.illiterate_No one can read"])
+    
 @
 
 }}
@@ -1371,11 +1374,6 @@ with my_model:
 
 \subsection{Formulate the regression equation}
 Next step is to add a formula that connects the observed outcome via a distribution to the data and the priors.
-
-%% TODO add
-      % X_Husband_iliterate * literate_couple[0] + \
-      % X_Wife_iliterate * literate_couple[1] + \
-      % X_Both_literate * literate_couple[2] + \
 
 <<spline-fit-model-10, engine = "python", results = "markup", cache = TRUE>>=
 with my_model:
@@ -1396,6 +1394,9 @@ with my_model:
       X_incomplete_secondary * education[2] + \
       X_complete_secondary * education[3] + \
       X_higher * education[4] + \
+      X_only_husband_can_read * illiterate_couple[0] + \
+      X_only_wife_can_read * illiterate_couple[1] + \
+      X_no_one_can_read * illiterate_couple[2] + \
       X_iwi * iwi2 + \
       X_ln_numb_of_children * ln_numb_of_children + \
       X_lnage_wife * lnage_wife + \
@@ -1430,7 +1431,7 @@ To be able to post process the parameter samples, these are saved  to disk with 
 import pickle
 import pymc.sampling.jax
 with my_model:
-    my_fit_pymc = pm.sampling.jax.sample_numpyro_nuts(random_seed=1234, tune=100, draws=400, target_accept=0.8, chains = 4, chain_method='parallel', progressbar = False, idata_kwargs=dict(log_likelihood=False), postprocessing_backend="cpu")
+    my_fit_pymc = pm.sampling.jax.sample_numpyro_nuts(random_seed=1234, tune=100, draws=400, target_accept=0.80, chains = 4, chain_method='parallel', progressbar = False, idata_kwargs=dict(log_likelihood=False), postprocessing_backend="cpu")
 pickle.dump(my_fit_pymc, open('ipv-women2.pydata', 'wb'))
 @
 
@@ -1495,17 +1496,18 @@ Import both the sampled parameters and the ``model matrix'' and make a clean ver
 \begin{compactenum}
 \item Intercept
 \item couple\_attitudes
-\item spline
-\item interaction\_terms
 \item decide\_health
 \item decide\_purchase
 \item education
 \item edudeviation
+\item gdi
+\item gni
+\item illiterate\_couple
+\item interaction\_terms
 \item iwi2
 \item ln\_numb\_of\_children  
 \item lnage\_wife
-\item gdi
-\item gni
+\item spline
 \item random term cluster (ignore when predicting)
 \item random term country (ignore when predicting)
 \end{compactenum}
@@ -1531,11 +1533,16 @@ interaction_terms <- unlist(sapply(c(attitudes), function(attitude) {
     }, simplify = FALSE)
 }, simplify = FALSE), recursive = FALSE)
 
-dummies <- cbind(sapply(c(
+dummies.1 <- cbind(sapply(c(
     "decide2_health_joint decisions", "decide2_health_husband decides", "decide2_health_wife decides",
     "decide2_purchases_husband decides", "decide2_purchases_joint decisions", "decide2_purchases_wife decides",
     "v149_Complete primary", "v149_Complete secondary", "v149_Higher", "v149_Incomplete primary", "v149_Incomplete secondary",    
     "edudeviation_Husband has higher edu.", "edudeviation_Wife has higher edu."), function (dummy){
+        car::recode(ipv.mm[[dummy]], recodes = my.recodes)        
+    }))
+
+dummies.2 <- cbind(sapply(c("couple.is.illiterate_No one can read",
+    "couple.is.illiterate_Only husband can read", "couple.is.illiterate_Only wife can read"), function (dummy){
         car::recode(ipv.mm[[dummy]], recodes = my.recodes)        
     }))
 
@@ -1544,7 +1551,7 @@ splines <- ipv.mm[my.spline.names]
 as.is.1 <- ipv.mm[c("gdi_s", "gni_s")]
 as.is.2 <- ipv.mm[c("iwi2", "ln_numb_of_children", "lnage_wife")]
 
-my.mm <- cbind(Intercept = rep(1, nrow(ipv.mm)), couple_attitudes, dummies, as.is.1, interaction_terms, as.is.2, splines)
+my.mm <- cbind(Intercept = rep(1, nrow(ipv.mm)), couple_attitudes, dummies.1, as.is.1, dummies.2, interaction_terms, as.is.2, splines)
 
 ## get the sample means
 my.means <- apply(my.mm, 2, mean)
@@ -1612,6 +1619,17 @@ mm.by.attitude.f <- function(this.attitude){
 }
 mms <- sapply(c("None justifys IPV", attitudes), mm.by.attitude.f, simplify = FALSE)
 @
+
+Verify that the parameters and the values are aligned.
+
+% \scalebox{.55}{\parbox{\textwidth}{
+
+<<spline-verify-alignment, results="asis", echo = FALSE>>=
+library(xtable)
+print(xtable(data.frame(Parameters = dimnames(params.matrix)[[2]], Values = dimnames(mms[[1]])[[2]])), booktabs = TRUE)
+@
+
+% }}
 
 \subsection{Predict}
 \label{sec:predict}
