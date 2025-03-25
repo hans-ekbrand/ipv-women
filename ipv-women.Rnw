@@ -56,7 +56,7 @@ To compile this document, including rendering the graphs, a working «R« and «
 
 <<install.packages, cache = FALSE>>=
 ## Install necessary R packages
-required.packages <- c("lme4", "data.table", "xtable", "effects", "parallel", "future", "doFuture", "foreach", "sf", "terra", "parallelly", "cooltools", "raster", "formatR", "lwgeom", "autoFRK", "rnaturalearthdata", "rnaturalearth", "spatstat.geom", "spatstat.random")
+required.packages <- c("lme4", "data.table", "xtable", "effects", "parallel", "future", "doFuture", "foreach", "sf", "terra", "parallelly", "cooltools", "raster", "formatR", "lwgeom", "autoFRK", "rnaturalearthdata", "rnaturalearth", "spatstat.geom", "spatstat.random", "readstata13", "mice")
 for(package in required.packages){
     if(!require(package, character.only=TRUE)){
         install.packages(package, character.only=TRUE)
@@ -147,7 +147,7 @@ Also add GDI and HDI subnational data from the \href{Global Data Lab}{https://gl
 
 @ 
 
-<<load.data.from.scratch>>=
+<<load.data.from.scratch, eval = FALSE>>=
 library(devtools)
 install_bitbucket(repo = "hansekbrand/iwi", upgrade = "never")
 install_bitbucket(repo = "hansekbrand/DHSharmonisation", ref="debug", upgrade = "never")
@@ -176,7 +176,11 @@ my.dt <- my.dt[which(is.na(woman.exposed.to.IPV) == FALSE |
                      is.na(man.thinks.IPV.can.be.justified) == FALSE), ]
 
 save(my.dt, file = "temp.RData")
+rm(my.dt)
+@
 
+<<load.data.from.file>>=
+load("temp.RData")
 contextuals.f <- function(var.name, my.dt){
     ## make var.name a binary variable
     my.dt$source.var <- ifelse(my.dt[[var.name]] == 1, TRUE, FALSE)
@@ -439,6 +443,12 @@ gdi.long <- melt(gdi.clean, id.vars = "GDLCODE",
                 value.name = "GDI")
 gdi.long[, year.of.interview := as.numeric(as.character(year.of.interview)), ]
 
+## impute data for years not estimated by GDL.
+imp.model.gdi <- mice::mice(gdi.long, method = "pmm", m = 1, printFlag = FALSE)
+gdi.long.complete <- mice::complete(imp.model.gdi)
+data.table::setDT(gdi.long.complete)
+gdi.long <- gdi.long.complete
+
 ## Now that we know which GLDCODE for which coordinate, create a data set with ClusterID, coordinates, and year, and add the GDL data to that set.
 
 my.temp.set <- unique(my.dt[which(is.na(lon) == FALSE), list(ClusterID, lon.lat.identifier = paste(lon, lat, sep = "."), year.of.interview), ])
@@ -449,9 +459,19 @@ my.temp.set.2 <- merge(my.temp.set, unique.pts.clean)
 ## The lon.lat.identifier is no longer useful
 my.temp.set.2[, lon.lat.identifier := NULL, ]
 
-setkey(my.temp.set.2, GDLCODE, year.of.interview)
+## For clusters with missing longitude and/or latitude, use the GDL code that corresponds to the "total" version for the country.
+## Ignore Afghanistan since that country has been dealt with the RegionID
+my.temp.set.2b <- unique(my.dt[which(is.na(lon) & country.code.ISO.3166.alpha.3 != 4), list(ClusterID, year.of.interview, GDLCODE = paste0(iso.3166$String.code[match(country.code.ISO.3166.alpha.3, iso.3166$numeric)], "t")), ])
+
+## If a cluster is in both sets, keep it only on the set with Sub-National data
+## these <- as.vector(na.omit(match(my.temp.set.2$ClusterID, my.temp.set.2b$ClusterID)))
+## But `these` is empty, so rbind() is safe
+
+my.temp.set.2.all <- rbind(my.temp.set.2, my.temp.set.2b)
+
+setkey(my.temp.set.2.all, GDLCODE, year.of.interview)
 setkey(gdi.long, GDLCODE, year.of.interview)
-my.temp.set.3 <- merge(my.temp.set.2, gdi.long)
+my.temp.set.3 <- merge(my.temp.set.2.all, gdi.long)
 
 ## Repeat with GNI
 ## Gross National Income per Capita in 1000 US-Dollars (2011 PPP)
@@ -461,6 +481,13 @@ gni.long <- melt(gni.clean, id.vars = "GDLCODE",
                 variable.name = "year.of.interview", 
                 value.name = "GNI")
 gni.long[, year.of.interview := as.numeric(as.character(year.of.interview)), ]
+
+## impute data for years not estimated by GDL.
+imp.model.gni <- mice::mice(gni.long, method = "pmm", m = 1, printFlag = FALSE)
+gni.long.complete <- mice::complete(imp.model.gni)
+data.table::setDT(gni.long.complete)
+gni.long <- gni.long.complete
+
 setkey(gni.long, GDLCODE, year.of.interview)
 my.temp.set.4 <- merge(my.temp.set.3, gni.long)
 
@@ -485,36 +512,25 @@ my.dt.temp[, country := iso.3166$String.code[match(country.code.ISO.3166.alpha.3
 
 ## ## Remove data that appears to be artifacts rather than real data
 ## ## viol01_wife
-## MMR                         0.6000000 0.40000000     6
-## SWZ                               NaN        NaN     1
-## TCD                         1.0000000 0.00000000     3
-
 ## What is wrong with these? Honduras, Moldova and Timor-Leste
 ## HND                         1.0000000 0.00000000  3304
 ## MDA                         1.0000000 0.00000000   939
-## TLS                         1.0000000 0.00000000  3781
 
-## SLE Sierra Leone is also weird, but not necessarily wrong.
-## SLE                         0.5000000 0.50000000  8594
-
-my.dt.temp <- my.dt.temp[which(country %in% c("HND", "MDA", "MMR", "SWZ", "TCD", "TLS") == FALSE), ]
+my.dt.temp <- my.dt.temp[which(country %in% c("HND", "MDA", "MOZ") == FALSE), ]
 
 ## Use the string instead of the digit code, so we get more informative labels
 my.dt.temp[, country := iso.3166$String[match(country.code.ISO.3166.alpha.3, iso.3166$numeric)], ]
 
-## keep only the needed columns, and only complete cases, this set will
-## only be used for the regression which requires non-missing data.
+## keep only the needed columns. Keep incomplete cases so that we can
+## calculate the number of women who answered the questions that the
+## kriging analyses is based on. Kriging requires coordinates, but it
+## does not require data on exposure. Regression on the other hand do
+## not require coordinates, but do require exposure data.
 
-my.dt.clean <- my.dt.temp[which(is.na(beat01_couple) == FALSE &
-                                is.na(viol01_wife) == FALSE &
-                                is.na(v149) == FALSE &
-                                is.na(decide2_purchases) == FALSE &
-                                is.na(decide2_health) == FALSE & 
-                                is.na(ln_numb_of_children) == FALSE &
-                                is.na(lnage_wife) == FALSE &
-                                is.na(couple.is.illiterate) == FALSE &
-                                is.na(iwi2) == FALSE),                                
-                          list(viol01_wife, beat01_couple, v149, edudeviation, decide2_purchases, decide2_health, gdi_s, gni_s, viol01_cluster, justifyIPV_cluster, iwi2, country, cluster1, ln_numb_of_children, lnage_wife, couple.is.illiterate, lon, lat), ]
+my.dt.clean <- my.dt.temp[which(is.na(beat01_couple) == FALSE |
+                                is.na(viol01_wife) == FALSE | 
+                                is.na(justifyIPV_cluster) == FALSE),                                
+                          list(viol01_wife, beat01_couple, v149, edudeviation, decide2_purchases, decide2_health, gdi_s, gni_s, viol01_cluster, justifyIPV_cluster, iwi2, country, cluster1, ln_numb_of_children, lnage_wife, couple.is.illiterate, lon, lat, year.of.interview), ]
 
 ## z-standardize some numeric variables
 for(var in c("gni_s", "iwi2")){
@@ -526,6 +542,11 @@ these <- which(my.dt.clean$country == "India")
 my.dt.clean$country[these] <- as.vector(sapply(as.character(my.dt.clean$cluster1[these]), function(x) {
    strsplit(x, ".", fixed = TRUE)[[1]][2]
 }))
+
+## remove clusters with only one person in them
+my.tab <- table(my.dt.clean$cluster1)
+remove.these.clusters <- names(my.tab[which(my.tab < 2)])
+my.dt.clean <- my.dt.clean[cluster1 %in% remove.these.clusters == FALSE, ]
 
 write.csv(my.dt.clean, file = "ipv-women2.csv", row.names = FALSE)
 save(my.dt.clean, file = "my.dt.clean.RData")
@@ -543,6 +564,9 @@ save(my.dt, file = "full.set.RData")
 justifyIPV_cluster <- my.dt[which(! is.na(lon) & ! is.na(justifyIPV_cluster)), list(country.code.ISO.3166.alpha.3, lon, lat, justifyIPV_cluster), ]
 viol01_cluster <- my.dt[which(! is.na(lon) & ! is.na(viol01_cluster)), list(country.code.ISO.3166.alpha.3, lon, lat, viol01_cluster), ]
 
+save(gdi.long, file = "gdi.long.RData")
+save(gni.long, file = "gni.long.RData")
+
 ## clean up
 rm(my.dt, my.dt.temp, my.temp.set.4, my.temp.set.3, my.temp.set.2, my.temp.set, gdi, gni, gdi.clean, gni.clean, gdi.long, gni.long, my.cols, my.map, unique.pts.clean, unique.pts, indices, gdl.polygons, gdl.classification, gdl.codes, sf_points, education.levels.ordered, Afghanistan.Region.ID.from.dhs, afghanistan, afghanistan.level1.projected, afghanistan.coordinates)
 gc(verbose = FALSE)
@@ -555,7 +579,7 @@ Apply \href{Kriging}{https://en.wikipedia.org/wiki/Kriging} on the data. Kriging
 
 The coordinate data is originally in longitude and latitude, i.e. referencing locations on a sphere. The Kriging algorithm assumes a flat coordinate system, so we project the coordinate data to the webmercator refence system (the code for the webmercator system is «EPSG:3857«)
 
-In rare cases a single local area can be surveyd twice, or the random replacement algorithm DHS uses to enhance the integrity of the respondends can make two different areas end up having the sam coordinate, but the the Kriging algorithm in use here assumes a single unique values per coordinate. To solve this, we calculate the mean value for all unique coordinates.
+In rare cases a single local area can be surveyed twice, or the random replacement algorithm DHS uses to enhance the integrity of the respondends can make two different areas end up having the sam coordinate, but the the Kriging algorithm in use here assumes a single unique values per coordinate. To solve this, we calculate the mean value for all unique coordinates.
 
 We have made two versions of these maps: one version uses only the latest measurements of IPV and attitudes toward IPV, the over version uses all available data which means that in a single country there can be data from multiple survey waves, i.e. repeated cross-sectional data. The mapping algorithm is only spatial, not spatio-temporal, which means the predictions are not for any specified point in time and the all measurements are weighted equally regardless of when they are made.
 
@@ -825,7 +849,7 @@ if(is.null(results[[2]]) == FALSE){
 }
 @
 
-Calculate sample size for Exposure in Asia
+Calculate sample size for Exposure in Asia.
 
 <<n.stats, tidy = FALSE>>=
 countries.codes.asia <- c("Andaman And Nicobar Islands",
@@ -1056,6 +1080,52 @@ if(is.null(serializable.border) == FALSE){
 
 \section{Regression with IPV as outcome}
 \label{sec:regression-with-ipv}
+
+Inspect the input data, compare with the reference dataset.
+
+<<spline-some-descriptives, results = "asis">>=
+my.tab <- my.dt.clean[which(is.na(viol01_wife) == FALSE &
+                            is.na(gdi_s) == FALSE &
+                            is.na(gni_s) == FALSE &
+                            is.na(beat01_couple) == FALSE
+                            ), list(proportion.exposed = round(length(which(viol01_wife))/.N, 3), gdi = round(mean(gdi_s), 3), gni = round(mean(gni_s), 3), N = .N), by = country]
+
+print(xtable(my.tab[order(country), ], caption = "Some descriptives, automatically created dataset, GNI and GDI based on Sub-national estimates by the GDL matched using point in polygon techniques. Number of children includes only living children."), include.rownames = FALSE, tabular.environment = 'longtable', floating = FALSE)
+
+@
+
+<<spline-björns.data, results = "asis">>=
+library(readstata13)
+my.df <- read.dta13("~/IPV_mw1.dta")
+
+## fix factors
+my.df$beat01_couple <- factor(names(attr(my.df, "label.table")$beat01_couple[match(my.df$beat01_couple, attr(my.df, "label.table")$beat01_couple)]), levels = c("No one accept IPV", "Wife accept IPV", "Husband accept IPV", "Wife & husband accept IPV"))
+
+my.df$iliterate_couple <- factor(names(attr(my.df, "label.table")$iliteracy[match(my.df$iliterate_couple, attr(my.df, "label.table")$iliteracy)]), levels = c("Both literate", "Wife iliterate", "Husband iliterate", "Both iliterate"))
+
+my.df$decide2_health <- factor(names(attr(my.df, "label.table")$decide2_health[match(my.df$decide2_health, attr(my.df, "label.table")$decide2_health)]), levels = c("Health - joint decisions", "Health - wife decides", "Health - husband decides", "Health - don't agree"))
+
+my.df$decide2_purchases <- factor(names(attr(my.df, "label.table")$decide2_purchases[match(my.df$decide2_purchases, attr(my.df, "label.table")$decide2_purchases)]), levels = c("Purchases - joint decisions", "Purchases - wife decides", "Purchases - husband decides", "Purchases - don't agree"))
+
+my.df$edudeviation <- factor(names(attr(my.df, "label.table")$edudeviation[match(my.df$edudeviation, attr(my.df, "label.table")$edudeviation)]), levels = c("No difference", "Wife has higher edu.", "Husband has higher edu."))
+
+## pre-emptively exclude cases with missing data. This is useful since we *after* removing these also remove clusters with less than 3 members.
+my.df.clean <- data.table(my.df[which(is.na(my.df$viol01_wife) == FALSE &
+                                      is.na(my.df$iliterate_couple) == FALSE &
+                                      is.na(my.df$ln_numb_of_children) == FALSE), c("d106", "d107", "d108", "viol01_wife", "beat01_couple", "exposedIPV_cluster", "justifyIPV_cluster", "decide2_health", "decide2_purchases", "v149", "edudeviation", "iliterate_couple", "iwi2", "lnage_wife", "ln_numb_of_children", "gdi_s", "bni_s", "country", "cluster1")])
+for(var in c("country", "cluster1")){
+    my.df.clean[[var]] <- factor(my.df.clean[[var]])
+}
+## Make proper booleans
+for(var in c("d106", "d107", "d108")){
+    my.df.clean[[var]] <- ifelse(my.df.clean[[var]] == "yes", TRUE, FALSE)
+}
+for(var in c("viol01_wife")){
+    my.df.clean[[var]] <- ifelse(my.df.clean[[var]] == 1, TRUE, FALSE)
+}
+my.tab <- my.df.clean[which(is.na(viol01_wife) == FALSE), list(proportion.exposed = round(length(which(viol01_wife))/.N, 3), gdi = round(mean(gdi_s), 3), gni = round(mean(bni_s), 3), N = .N), by = country]
+print(xtable(my.tab[order(country), ], caption = "Some descriptives from the reference data set."), include.rownames = FALSE, tabular.environment = 'longtable', floating = FALSE)
+@ 
 
 Start python.
 
