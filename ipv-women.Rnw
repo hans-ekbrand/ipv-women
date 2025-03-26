@@ -307,104 +307,12 @@ my.dt[, man.is.illiterate := NULL, ]
 my.dt[, husband.is.illiterate := NULL, ]
 my.dt[, wife.is.illiterate := NULL, ]
 
-## For all data points that we have coordinates for, we use
-## point-in-polygon techniques to match Subnational GDI and
-## Subnational GNI from the Global Data Lab.
-
-## Afghanistan lacks coordinate data, but the region names used by DHS
-## corresponds the 34 gadm areas at level 1, so with good enough
-## precision we can locate each case. For Afghanistan the polygons
-## provided by the GDL are coarser so precision is not lost.
-
-## Step 1, match RegionID from DHS with names of GADM region level 1
-Afghanistan.Region.ID.from.dhs <- car::recode(my.dt[country.code.ISO.3166.alpha.3 == 4, substring(RegionID, 4), ], recodes = "'Helmand' = 'Hilmand'; 'Herat' = 'Hirat'; 'Kunarha' = 'Kunar'; 'Nooristan' = 'Nuristan'; 'Panjsher' = 'Panjshir'; 'Sar-e-pul' = 'SariPul'; 'Urozgan' = 'Uruzgan'")
-
-## Update the RegionID in my.dt for these cases.
-my.dt[country.code.ISO.3166.alpha.3 == 4, RegionID := paste0("AF.", Afghanistan.Region.ID.from.dhs), ]
-
-## For each unique value of RegionID, count the number of clusters
-n.per.region <- my.dt[country.code.ISO.3166.alpha.3 == 4, length(unique(ClusterID)), by = RegionID]
-clusters.per.region <- my.dt[country.code.ISO.3166.alpha.3 == 4, unique(ClusterID), by = RegionID]
-
-## For now, just sample coordinates in the correct GADM region.
-## sampling points using the spatstat.random::rpoint(), which requires projected polygons
-
-## Get polygons for level 1 in Afghanistan
-## Define the URL and destination file
-if(! file.exists("gadm41_AFG_1.json.zip")){
-    url <- "https://geodata.ucdavis.edu/gadm/gadm4.1/json/gadm41_AFG_1.json.zip"
-    destfile <- "gadm41_AFG_1.json.zip"
-
-    ## Download the file
-    utils::download.file(url, destfile, mode = "wb")
-
-    ## Unzip the file
-    utils::unzip(destfile)
-}
-
-## read the shapes
-afghanistan <- sf::st_read(paste("gadm41_AFG_1.json"))
-
-## project the shapes
-afghanistan.level1.projected <- sf::st_transform(afghanistan[, "NAME_1"], "EPSG:3857")
-
-sample.points.f <- function(gadm.region.name, n, polygons){
-    my.win <- spatstat.geom::as.owin(polygons[match(gadm.region.name, polygons$NAME_1), ])
-    spatstat.random::rpoint(n = n, win = my.win)
-}
-
-## Generate coordinates for all cases from Afghanistan based on their RegionID by sampling.
-afghanistan.coordinates = data.table::rbindlist(sapply(unique(Afghanistan.Region.ID.from.dhs), function(region.name) {
-    my.n <- n.per.region$V1[match(paste0("AF.", region.name), n.per.region$RegionID)]
-    points_sampled <- sample.points.f(gadm.region.name = region.name, n = my.n, polygons = afghanistan.level1.projected)
-    ## Convert to sf
-    sf_points <- sf::st_as_sf(data.frame(x = points_sampled$x, y = points_sampled$y), 
-                          coords = c("x", "y"), crs = 3857)
-
-    ## Transform to lon/lat (EPSG 4326)
-    sf_points_lonlat <- sf::st_transform(sf_points, crs = 4326)
-
-    ## Extract coordinates
-    coords <- sf::st_coordinates(sf_points_lonlat)
-
-    ## Find the unique ClusterID:s in this region.
-    ClusterID = as.character(clusters.per.region$V1[clusters.per.region$RegionID %in% paste0("AF.", region.name)])
-    
-    return(data.table::data.table(ClusterID, lon = coords[, "X"], lat=coords[, "Y"]))
-}, simplify = FALSE))
-
-## impute longitude and latitude for the cases from Afghanistan
-
-for(i in 1:nrow(afghanistan.coordinates)){
-    these <- which(my.dt$ClusterID == afghanistan.coordinates$ClusterID[i])
-    my.dt[these, lon := rep(afghanistan.coordinates$lon[i], length(these)), ]
-    my.dt[these, lat := rep(afghanistan.coordinates$lat[i], length(these)), ]    
-}
-
+## use only the totals from GDL.
 gdi <- setDT(read.csv(paste0(gdl.path, "GDL-Subnational-GDI-data.csv"), check.names = FALSE))
 ## keep only the necessary columns from hdi and gdi
 ## GDI has no data in columns "older" than 2000
 my.cols <- c("GDLCODE", 2000:2022)
 gdi.clean <- gdi[ , my.cols, with = FALSE]
-
-## use st_intersects() to map points to polygons
-## apply st_intersects() only once per unique coordinate
-## create the set of all unique points
-unique.pts <- unique(na.omit(my.dt[, list(lon, lat), ]))
-sf_points <- sf::st_as_sf(unique.pts, coords = c("lon", "lat"), crs = 4326)
-
-## There are four invalid polygons in gdl.polygons, correct them.
-## invalid_polygons <- which(!st_is_valid(gdl.polygons))
-## invalid_polygons
-## [1]  105  544 1414 1667
-gdl.polygons <- sf::st_make_valid(sf::st_read(paste0(gdl.path, "GDL Shapefiles V6.4")))
-gdl.classification <- sf::st_intersects(sf_points, gdl.polygons)
-## Get the area names from the result of st_intersects
-indices <- sapply(gdl.classification, function(x) { x[1] })
-gdl.codes <- gdl.polygons$gdlcode[indices]
-unique.pts$GDLCODE <- gdi.clean$GDLCODE[match(gdl.codes, gdi.clean$GDLCODE)]
-unique.pts[, lon.lat.identifier := paste(lon, lat, sep = "."), ]
-unique.pts.clean <- unique.pts[ , list(lon.lat.identifier, GDLCODE), ]
 
 ## convert gdi.clean from wide to long
 # Convert to long format
@@ -421,27 +329,12 @@ gdi.long <- gdi.long.complete
 
 ## Now that we know which GLDCODE for which coordinate, create a data set with ClusterID, coordinates, and year, and add the GDL data to that set.
 
-my.temp.set <- unique(my.dt[which(is.na(lon) == FALSE), list(ClusterID, lon.lat.identifier = paste(lon, lat, sep = "."), year.of.interview), ])
-## add GDLCODE to my.temp.set, using unique.pts.clean
-setkey(my.temp.set, lon.lat.identifier)
-setkey(unique.pts.clean, lon.lat.identifier)
-my.temp.set.2 <- merge(my.temp.set, unique.pts.clean)
-## The lon.lat.identifier is no longer useful
-my.temp.set.2[, lon.lat.identifier := NULL, ]
+## Use the GDL code that corresponds to the "total" version for the country.
+my.temp.set <- unique(my.dt[, list(ClusterID, year.of.interview, GDLCODE = paste0(iso.3166$String.code[match(country.code.ISO.3166.alpha.3, iso.3166$numeric)], "t")), ])
 
-## For clusters with missing longitude and/or latitude, use the GDL code that corresponds to the "total" version for the country.
-## Ignore Afghanistan since that country has been dealt with the RegionID
-my.temp.set.2b <- unique(my.dt[which(is.na(lon) & country.code.ISO.3166.alpha.3 != 4), list(ClusterID, year.of.interview, GDLCODE = paste0(iso.3166$String.code[match(country.code.ISO.3166.alpha.3, iso.3166$numeric)], "t")), ])
-
-## If a cluster is in both sets, keep it only on the set with Sub-National data
-## these <- as.vector(na.omit(match(my.temp.set.2$ClusterID, my.temp.set.2b$ClusterID)))
-## But `these` is empty, so rbind() is safe
-
-my.temp.set.2.all <- rbind(my.temp.set.2, my.temp.set.2b)
-
-setkey(my.temp.set.2.all, GDLCODE, year.of.interview)
+setkey(my.temp.set, GDLCODE, year.of.interview)
 setkey(gdi.long, GDLCODE, year.of.interview)
-my.temp.set.3 <- merge(my.temp.set.2.all, gdi.long)
+my.temp.set.3 <- merge(my.temp.set, gdi.long)
 
 ## Repeat with GNI
 ## Gross National Income per Capita in 1000 US-Dollars (2011 PPP)
@@ -485,8 +378,10 @@ my.dt.temp[, country := iso.3166$String.code[match(country.code.ISO.3166.alpha.3
 ## What is wrong with these? Honduras, Moldova and Timor-Leste
 ## HND                         1.0000000 0.00000000  3304
 ## MDA                         1.0000000 0.00000000   939
+## Guinea has only missing,
+## Mozambique has only non exposed, can't be right.
 
-my.dt.temp <- my.dt.temp[which(country %in% c("HND", "MDA", "MOZ") == FALSE), ]
+my.dt.temp <- my.dt.temp[which(country %in% c("HND", "MDA", "MOZ", "GIN") == FALSE), ]
 
 ## Use the string instead of the digit code, so we get more informative labels
 my.dt.temp[, country := iso.3166$String[match(country.code.ISO.3166.alpha.3, iso.3166$numeric)], ]
@@ -497,13 +392,23 @@ my.dt.temp[, country := iso.3166$String[match(country.code.ISO.3166.alpha.3, iso
 ## does not require data on exposure. Regression on the other hand do
 ## not require coordinates, but do require exposure data.
 
-my.dt.clean <- my.dt.temp[which(is.na(beat01_couple) == FALSE |
-                                is.na(viol01_wife) == FALSE | 
-                                is.na(justifyIPV_cluster) == FALSE),                                
+my.dt.clean <- my.dt.temp[which(is.na(beat01_couple) == FALSE &
+                                is.na(viol01_wife) == FALSE &
+                                is.na(justifyIPV_cluster) == FALSE &
+                                is.na(v149) == FALSE &
+                                is.na(edudeviation) == FALSE &
+                                is.na(decide2_purchases) == FALSE &
+                                is.na(decide2_health) == FALSE &
+                                is.na(iwi2) == FALSE &
+                                is.na(ln_numb_of_children) == FALSE &
+                                is.na(couple.is.illiterate) == FALSE &
+                                is.na(lnage_wife) == FALSE &                                                                                           is.na(gni_s) == FALSE &
+                                is.na(gdi_s) == FALSE
+                                ),                                
                           list(viol01_wife, beat01_couple, v149, edudeviation, decide2_purchases, decide2_health, gdi_s, gni_s, viol01_cluster, justifyIPV_cluster, iwi2, country, cluster1, ln_numb_of_children, lnage_wife, couple.is.illiterate, lon, lat, year.of.interview), ]
 
 ## z-standardize some numeric variables
-for(var in c("gni_s", "iwi2")){
+for(var in c("gni_s", "iwi2", "gdi_s")){
     my.dt.clean[[var]] <- scale(my.dt.clean[[var]])
 }
 
@@ -513,18 +418,18 @@ my.dt.clean$country[these] <- as.vector(sapply(as.character(my.dt.clean$cluster1
    strsplit(x, ".", fixed = TRUE)[[1]][2]
 }))
 
-## remove clusters with only one person in them
-my.tab <- table(my.dt.clean$cluster1)
-remove.these.clusters <- names(my.tab[which(my.tab < 2)])
-my.dt.clean <- my.dt.clean[cluster1 %in% remove.these.clusters == FALSE, ]
+## Make factors, so that the levels are clear
+for(var in names(which(sapply(my.dt.clean, class) == "character"))){
+    my.dt.clean[[var]] <- factor(my.dt.clean[[var]])
+}
 
-write.csv(my.dt.clean, file = "ipv-women2.csv", row.names = FALSE)
+## ## remove clusters with only one person in them
+## my.tab <- table(my.dt.clean$cluster1)
+## remove.these.clusters <- names(my.tab[which(my.tab < 2)])
+## my.dt.clean <- my.dt.clean[cluster1 %in% remove.these.clusters == FALSE, ]
+
+write.csv(my.dt.clean, file = "ipv-women-no-gis-matching.csv", row.names = FALSE)
 save(my.dt.clean, file = "my.dt.clean.RData")
-
-## Also save a copy of the full set (including all vars, and cases
-## with missing data)
-my.dt <- my.dt.temp
-save(my.dt, file = "full.set.RData")
 
 ## Create the two sets needed for kriging: these need to have
 ## non-missing on lon, lat, but justifyIPV_cluster does not require
@@ -533,13 +438,6 @@ save(my.dt, file = "full.set.RData")
 
 justifyIPV_cluster <- my.dt[which(! is.na(lon) & ! is.na(justifyIPV_cluster)), list(country.code.ISO.3166.alpha.3, lon, lat, justifyIPV_cluster), ]
 viol01_cluster <- my.dt[which(! is.na(lon) & ! is.na(viol01_cluster)), list(country.code.ISO.3166.alpha.3, lon, lat, viol01_cluster), ]
-
-save(gdi.long, file = "gdi.long.RData")
-save(gni.long, file = "gni.long.RData")
-
-## clean up
-rm(my.dt, my.dt.temp, my.temp.set.4, my.temp.set.3, my.temp.set.2, my.temp.set, gdi, gni, gdi.clean, gni.clean, gdi.long, gni.long, my.cols, my.map, unique.pts.clean, unique.pts, indices, gdl.polygons, gdl.classification, gdl.codes, sf_points, education.levels.ordered, Afghanistan.Region.ID.from.dhs, afghanistan, afghanistan.level1.projected, afghanistan.coordinates)
-gc(verbose = FALSE)
 
 @
 
