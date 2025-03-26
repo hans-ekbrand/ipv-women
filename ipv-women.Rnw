@@ -330,7 +330,7 @@ gdi.long <- gdi.long.complete
 ## Now that we know which GLDCODE for which coordinate, create a data set with ClusterID, coordinates, and year, and add the GDL data to that set.
 
 ## Use the GDL code that corresponds to the "total" version for the country.
-my.temp.set <- unique(my.dt[, list(ClusterID, year.of.interview, GDLCODE = paste0(iso.3166$String.code[match(country.code.ISO.3166.alpha.3, iso.3166$numeric)], "t")), ])
+my.temp.set <- unique(my.dt[, list(ClusterID, year.of.interview, GDLCODE = paste0(globallivingconditions::iso.3166$String.code[match(country.code.ISO.3166.alpha.3, globallivingconditions::iso.3166$numeric)], "t")), ])
 
 setkey(my.temp.set, GDLCODE, year.of.interview)
 setkey(gdi.long, GDLCODE, year.of.interview)
@@ -371,7 +371,7 @@ colnames(my.dt.temp) <- gsub("GNI", "gni_s", colnames(my.dt.temp))
 colnames(my.dt.temp) <- gsub("empowerment.V149", "v149", colnames(my.dt.temp))
 
 ## Convert the country code from numeric to letters
-my.dt.temp[, country := iso.3166$String.code[match(country.code.ISO.3166.alpha.3, iso.3166$numeric)], ]
+my.dt.temp[, country := globallivingconditions::iso.3166$String.code[match(country.code.ISO.3166.alpha.3, globallivingconditions::iso.3166$numeric)], ]
 
 ## ## Remove data that appears to be artifacts rather than real data
 ## ## viol01_wife
@@ -384,7 +384,7 @@ my.dt.temp[, country := iso.3166$String.code[match(country.code.ISO.3166.alpha.3
 my.dt.temp <- my.dt.temp[which(country %in% c("HND", "MDA", "MOZ", "GIN") == FALSE), ]
 
 ## Use the string instead of the digit code, so we get more informative labels
-my.dt.temp[, country := iso.3166$String[match(country.code.ISO.3166.alpha.3, iso.3166$numeric)], ]
+my.dt.temp[, country := globallivingconditions::iso.3166$String[match(country.code.ISO.3166.alpha.3, globallivingconditions::iso.3166$numeric)], ]
 
 ## keep only the needed columns. Keep incomplete cases so that we can
 ## calculate the number of women who answered the questions that the
@@ -534,11 +534,11 @@ gis.map <- paste0(my.dir, "/GIS-borders/")
 <<generate.input.data.for.kriging>>=
 generate.input.data.for.kriging.f <- function(my.set, my.var, my.clean.dt, projection = "EPSG:3857", my.cell.width = 10000, country.borders.to.ignore = NULL){
     ## country (as string) is used to match against country.borders.to.ignore
-    my.clean.dt[, country := iso.3166$String[match(country.code.ISO.3166.alpha.3, iso.3166$numeric)], ]
+    my.clean.dt[, country := globallivingconditions::iso.3166$String[match(country.code.ISO.3166.alpha.3, globallivingconditions::iso.3166$numeric)], ]
 
     ## Select the relevant data points 
     my.dt.with.data <- my.clean.dt[ 
-        country.code.ISO.3166.alpha.3 %in% iso.3166$numeric[match(my.set, iso.3166$String)] &
+        country.code.ISO.3166.alpha.3 %in% globallivingconditions::iso.3166$numeric[match(my.set, globallivingconditions::iso.3166$String)] &
         ! is.na(lon) &
         ! is.na(my.var), ]
 
@@ -765,7 +765,7 @@ add.gray.countries <- c("Bangladesh", "Viet Nam",
                         "Lao People's Democratic Republic", "Thailand")
 world <- rnaturalearth::ne_countries(scale = 50, returnclass = "sv")
 gray.countries <- world[as.numeric(world$iso_n3_eh) %in%
-        iso.3166$numeric[match(add.gray.countries, iso.3166$String)], ]
+        globallivingconditions::iso.3166$numeric[match(add.gray.countries, globallivingconditions::iso.3166$String)], ]
 plot(gray.countries, col = "gray80", add = TRUE, border = "darkgreen", lwd = 0.5)
 
 @
@@ -811,7 +811,7 @@ if(is.null(serializable.border) == FALSE){
 }
 add.gray.countries <- c("Bangladesh", "Viet Nam", "Lao People's Democratic Republic", "Thailand")
 world <- rnaturalearth::ne_countries(scale = 50, returnclass = "sv")
-gray.countries <- world[as.numeric(world$iso_n3_eh) %in% iso.3166$numeric[match(add.gray.countries, iso.3166$String)], ]
+gray.countries <- world[as.numeric(world$iso_n3_eh) %in% globallivingconditions::iso.3166$numeric[match(add.gray.countries, globallivingconditions::iso.3166$String)], ]
 plot(gray.countries, col = "gray80", add = TRUE, border = "darkgreen", lwd = 0.5)
 
 @ 
