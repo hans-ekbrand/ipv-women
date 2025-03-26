@@ -147,7 +147,7 @@ Also add GDI and HDI subnational data from the \href{Global Data Lab}{https://gl
 
 @ 
 
-<<load.data.from.scratch, eval = FALSE>>=
+<<load.data.from.scratch>>=
 library(devtools)
 install_bitbucket(repo = "hansekbrand/iwi", upgrade = "never")
 install_bitbucket(repo = "hansekbrand/DHSharmonisation", ref="debug", upgrade = "never")
