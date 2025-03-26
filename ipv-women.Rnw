@@ -405,7 +405,7 @@ my.dt.clean <- my.dt.temp[which(is.na(beat01_couple) == FALSE &
                                 is.na(lnage_wife) == FALSE &                                                                                           is.na(gni_s) == FALSE &
                                 is.na(gdi_s) == FALSE
                                 ),                                
-                          list(viol01_wife, beat01_couple, v149, edudeviation, decide2_purchases, decide2_health, gdi_s, gni_s, viol01_cluster, justifyIPV_cluster, iwi2, country, cluster1, ln_numb_of_children, lnage_wife, couple.is.illiterate, lon, lat, year.of.interview), ]
+                          list(viol01_wife, beat01_couple, v149, edudeviation, decide2_purchases, decide2_health, gdi_s, gni_s, viol01_cluster, justifyIPV_cluster, iwi2, country, cluster1, ln_numb_of_children, lnage_wife, couple.is.illiterate), ]
 
 ## z-standardize some numeric variables
 for(var in c("gni_s", "iwi2", "gdi_s")){
