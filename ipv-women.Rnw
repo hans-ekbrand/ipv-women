@@ -776,7 +776,6 @@ Before actually creating the model object, below defined as «my\_model«, it is
 
 <<splines-fit-model-1, engine = "python", results = "markup", cache = TRUE>>=
 import pymc as pm
-import pymc.sampling.jax
 coords={
     "couple_attitude_dims" : ["Husband justifys IPV", "Wife justifys IPV", "Both justify IPV"],
     "education_dims" : ["Incomplete primary", "Complete primary", "Incomplete secondary", "Complete_secondary", "Higher"],
@@ -922,10 +921,12 @@ If you have a graphical processing unit (GPU) from «nvidia«, then install «ja
 
 <<splines-fit-model-12, engine = "python", results = "markup", cache = TRUE, echo = TRUE>>=
 import pickle
+import pymc.sampling.jax
+import arviz
+
 try:
-    import pymc.sampling_jax
     with my_model:
-        my_fit_pymc = pm.sampling_jax.sample_numpyro_nuts(random_seed=1234, tune=400, draws=400, target_accept=0.8, chains = 2, chain_method='parallel', idata_kwargs=dict(log_likelihood=False), postprocessing_backend="cpu", progressbar = False)
+        my_fit_pymc = pymc.sampling.jax.sample_numpyro_nuts(random_seed=1234, tune=400, draws=400, target_accept=0.8, chains = 2, chain_method='parallel', idata_kwargs=dict(log_likelihood=False), postprocessing_backend="cpu", progressbar = False)
 except ImportError as e:
     with my_model:
         my_fit_pymc = pm.sample(random_seed=1234, tune=500, draws=200, target_accept=0.8, chains = 2, chain_method='parallel', cores=4, idata_kwargs=dict(log_likelihood=False), postprocessing_backend="cpu", progressbar = False)
