@@ -470,6 +470,7 @@ import pandas as pd
 import pymc as pm
 import pymc.sampling.jax
 import numpy as np
+import matplotlib.pyplot as plt
 import pickle
 from patsy import dmatrix
 import random
