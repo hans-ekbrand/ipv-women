@@ -453,6 +453,35 @@ viol01_cluster <- my.dt[which(! is.na(lon) & ! is.na(viol01_cluster)), list(coun
 
 @
 
+Start python.
+
+<<python.avoid.startup.bug, echo = FALSE>>=
+knitr::opts_chunk$set(python.reticulate=TRUE)
+library(reticulate)
+reticulate::use_python(path.to.python, required = TRUE)
+## use_virtualenv("/mimer/NOBACKUP/groups/globalpoverty1/hans/.my-venv")
+reticulate::py_run_string("import pymc as mc")
+@ 
+
+Import python modules.
+
+<<python.1, engine='python', engine.path = path.to.python, echo = TRUE, results = "markup">>=
+import pandas as pd
+import pymc as pm
+import pymc.sampling.jax
+import numpy as np
+import pickle
+from patsy import dmatrix
+import random
+random.seed(9)
+
+import os
+os.environ["XLA_PYTHON_CLIENT_ALLOCATOR"] = "platform"
+
+import jax
+
+@
+
 Load the data from a «CSV«-file. % Prepare a slice to print since actual printing works better in R.
 
 <<splines-load.data, engine='python', warnings = TRUE, results = 'markup', cache = TRUE>>=
@@ -926,7 +955,7 @@ import arviz
 
 try:
     with my_model:
-        my_fit_pymc = pymc.sampling.jax.sample_numpyro_nuts(random_seed=1234, tune=400, draws=400, target_accept=0.8, chains = 2, chain_method='parallel', idata_kwargs=dict(log_likelihood=False), postprocessing_backend="cpu", progressbar = False)
+        my_fit_pymc = pymc.sampling.jax.sample_numpyro_nuts(random_seed=1234, tune=200, draws=400, target_accept=0.8, chains = 2, chain_method='parallel', idata_kwargs=dict(log_likelihood=False), postprocessing_backend="cpu", progressbar = False)
 except ImportError as e:
     with my_model:
         my_fit_pymc = pm.sample(random_seed=1234, tune=500, draws=200, target_accept=0.8, chains = 2, chain_method='parallel', cores=4, idata_kwargs=dict(log_likelihood=False), postprocessing_backend="cpu", progressbar = False)
