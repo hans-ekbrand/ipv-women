@@ -12,6 +12,7 @@
 \usepackage{amsmath} %% \pmatrix
 \usepackage{subfig}
 \usepackage{apacite}
+\usepackage[framemethod=tikz]{mdframed} % nice textboxes
 
 %% make a single « start and end a chunk of \texttt{}, and two «« to represent the literal «.
 \catcode`«=\active
