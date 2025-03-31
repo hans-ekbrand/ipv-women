@@ -455,7 +455,7 @@ viol01_cluster <- my.dt[which(! is.na(lon) & ! is.na(viol01_cluster)), list(coun
 
 Start python.
 
-<<python.avoid.startup.bug, echo = FALSE>>=
+<<splines-python.avoid.startup.bug, echo = FALSE>>=
 knitr::opts_chunk$set(python.reticulate=TRUE)
 library(reticulate)
 reticulate::use_python(path.to.python, required = TRUE)
@@ -465,7 +465,7 @@ reticulate::py_run_string("import pymc as mc")
 
 Import python modules.
 
-<<python.1, engine='python', engine.path = path.to.python, echo = TRUE, results = "markup">>=
+<<splines-python.1, engine='python', engine.path = path.to.python, echo = TRUE, results = "markup">>=
 import pandas as pd
 import pymc as pm
 import pymc.sampling.jax
