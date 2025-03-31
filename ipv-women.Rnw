@@ -427,6 +427,8 @@ for(var in c("gni_s", "iwi2", "gdi_s")){
 
 ## Treat the states of India as countries (note that they already have separate values for GDI and GNI, the country change only affects the random intercept).
 these <- which(my.dt.clean$country == "India")
+## make country a character vector so that we can manipulate it and add new values
+my.dt.clean$country <- as.character(my.dt.clean$country)
 if(length(these) > 0){
     my.dt.clean$country[these] <- as.vector(sapply(as.character(my.dt.clean$cluster1[these]), function(x) {
         strsplit(x, ".", fixed = TRUE)[[1]][2]
@@ -444,7 +446,7 @@ write.csv(my.dt.clean, file = "ipv-women-no-gis-matching.csv", row.names = FALSE
 save(my.dt.clean, file = "my.dt.clean.RData")
 
 ## Create the two sets needed for kriging: these need to have
-## non-missing on lon, lat, but justifyIPV_cluster does not require
+## non-missing on lon, lat, but justifyIPV_cluster does not required
 ## the cases to have non-missing on viol01_cluster. Since
 ## justifyIPV_cluster is asked in more surveys, use that extra data!
 
