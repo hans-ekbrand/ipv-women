@@ -242,30 +242,30 @@ my.map <- my.dt[, match(paste(HouseholdID, empowerment.V034, sep = "."), PersonI
 my.dt[, husband.thinks.IPV.can.be.justified := man.thinks.IPV.can.be.justified[my.map], ]
 my.dt[which(woman.thinks.IPV.can.be.justified &
             husband.thinks.IPV.can.be.justified),
-      beat01_couple := "Both justify IPV", ]
+      couple_attitudes := "Both justify IPV", ]
 my.dt[which(! woman.thinks.IPV.can.be.justified &
             ! husband.thinks.IPV.can.be.justified),
-      beat01_couple := "No one justifys IPV", ]
+      couple_attitudes := "No one justifys IPV", ]
 my.dt[which(! woman.thinks.IPV.can.be.justified &
             husband.thinks.IPV.can.be.justified),
-      beat01_couple := "Husband justifys IPV", ]
+      couple_attitudes := "Husband justifies IPV", ]
 my.dt[which(woman.thinks.IPV.can.be.justified &
             ! husband.thinks.IPV.can.be.justified),
-      beat01_couple := "Wife justifys IPV", ]
+      couple_attitudes := "Wife justifies IPV", ]
 
 ## How are decisions on made?
 decisions.f <- function(answer.from.wife, answer.from.husband){
     results <- rep(NA, length(answer.from.wife))
     results[which(answer.from.wife == "Respondent and husband/partner" &
-                  answer.from.husband == "Respondent and wife/partner")] <- "joint decisions"
+                  answer.from.husband == "Respondent and wife/partner")] <- "Joint decisions"
     results[which(answer.from.wife == "Respondent alone" &
-                  answer.from.husband == "Wife/partner alone")] <- "wife decides"
+                  answer.from.husband == "Wife/partner alone")] <- "Wife decides"
     results[which(answer.from.wife == "Husband/partner alone" &
-                  answer.from.husband == "Respondent alone")] <- "husband decides"
+                  answer.from.husband == "Respondent alone")] <- "Husband decides"
     ## Wife says I decide, husband says something else
     results[which(answer.from.wife == "Respondent alone" &
                   answer.from.husband != "Wife/partner alone")] <- "don't agree"
-    ## Wife says my husband decides, husband says something else
+    ## Wife says my Husband decides, husband says something else
     results[which(answer.from.wife == "Husband/partner alone" &
                   answer.from.husband != "Respondent alone")] <- "don't agree"
     ## Wife says we decide together, partners says something else
@@ -281,8 +281,8 @@ decisions.f <- function(answer.from.wife, answer.from.husband){
 }
 
 ## How are decisions made on health care and large purchases
-my.dt[, decide2_health := decisions.f(empowerment.V743A, empowerment.MV743A[my.map]), ]
-my.dt[, decide2_purchases := decisions.f(empowerment.V743B, empowerment.MV743B[my.map]), ]
+my.dt[, decide_health := decisions.f(empowerment.V743A, empowerment.MV743A[my.map]), ]
+my.dt[, decide_purchases := decisions.f(empowerment.V743B, empowerment.MV743B[my.map]), ]
 
 ## Educational differences: edudeviation
 ## Make V149 and MV149 ordered factors with this ordering
@@ -306,11 +306,11 @@ my.dt[, wife.is.illiterate := ifelse(car::recode(empowerment.V155, recodes = "c(
 
 my.dt[, husband.is.illiterate := man.is.illiterate[my.map], ]
 
-my.dt[, couple_is_illiterate := factor(rep(NA, nrow(my.dt)), levels = c("No one can read", "Only husband can read", "Only wife can read", "Both can read")), ]
-my.dt[which(husband.is.illiterate & wife.is.illiterate), couple_is_illiterate := "No one can read", ]
-my.dt[which(husband.is.illiterate & (wife.is.illiterate == FALSE)), couple_is_illiterate := "Only wife can read", ]
-my.dt[which((husband.is.illiterate == FALSE) & wife.is.illiterate), couple_is_illiterate := "Only husband can read", ]
-my.dt[which((husband.is.illiterate == FALSE) & (wife.is.illiterate == FALSE)), couple_is_illiterate := "Both can read", ]
+my.dt[, literate_couple := factor(rep(NA, nrow(my.dt)), levels = c("No one can read", "Only husband can read", "Only wife can read", "Both can read")), ]
+my.dt[which(husband.is.illiterate & wife.is.illiterate), literate_couple := "No one can read", ]
+my.dt[which(husband.is.illiterate & (wife.is.illiterate == FALSE)), literate_couple := "Only wife can read", ]
+my.dt[which((husband.is.illiterate == FALSE) & wife.is.illiterate), literate_couple := "Only husband can read", ]
+my.dt[which((husband.is.illiterate == FALSE) & (wife.is.illiterate == FALSE)), literate_couple := "Both can read", ]
 ## clean up
 my.dt[, man.is.illiterate := NULL, ]
 my.dt[, husband.is.illiterate := NULL, ]
@@ -379,9 +379,9 @@ my.dt.temp <- merge(my.dt, my.temp.set.4)
 colnames(my.dt.temp) <- gsub("woman.exposed.to.IPV", "viol01_wife", colnames(my.dt.temp))
 colnames(my.dt.temp) <- gsub("iwi", "iwi2", colnames(my.dt.temp))
 colnames(my.dt.temp) <- gsub("ClusterID", "cluster1", colnames(my.dt.temp))
-colnames(my.dt.temp) <- gsub("GDI", "gdi_s", colnames(my.dt.temp))
-colnames(my.dt.temp) <- gsub("GNI", "gni_s", colnames(my.dt.temp))
-colnames(my.dt.temp) <- gsub("empowerment.V149", "v149", colnames(my.dt.temp))
+colnames(my.dt.temp) <- gsub("GDI", "gdi", colnames(my.dt.temp))
+colnames(my.dt.temp) <- gsub("GNI", "gni", colnames(my.dt.temp))
+colnames(my.dt.temp) <- gsub("empowerment.V149", "Education", colnames(my.dt.temp))
 
 ## Convert the country code from numeric to letters
 my.dt.temp[, country := factor(globallivingconditions::iso.3166$String.code[match(country.code.ISO.3166.alpha.3, globallivingconditions::iso.3166$numeric)]), ]
@@ -405,24 +405,24 @@ my.dt.temp[, country := factor(globallivingconditions::iso.3166$String[match(cou
 ## does not require data on exposure. Regression on the other hand do
 ## not require coordinates, but do require exposure data.
 
-my.dt.clean <- my.dt.temp[which(is.na(beat01_couple) == FALSE &
+my.dt.clean <- my.dt.temp[which(is.na(couple_attitudes) == FALSE &
                                 is.na(viol01_wife) == FALSE &
                                 is.na(justifyIPV_cluster) == FALSE &
-                                is.na(v149) == FALSE &
+                                is.na(Education) == FALSE &
                                 is.na(edudeviation) == FALSE &
-                                is.na(decide2_purchases) == FALSE &
-                                is.na(decide2_health) == FALSE &
+                                is.na(decide_purchases) == FALSE &
+                                is.na(decide_health) == FALSE &
                                 is.na(iwi2) == FALSE &
                                 is.na(ln_numb_of_children) == FALSE &
-                                is.na(couple_is_illiterate) == FALSE &
+                                is.na(literate_couple) == FALSE &
                                 is.na(lnage_wife) == FALSE &
-                                is.na(gni_s) == FALSE &
-                                is.na(gdi_s) == FALSE
+                                is.na(gni) == FALSE &
+                                is.na(gdi) == FALSE
                                 ),                                
-                          list(viol01_wife, beat01_couple, v149, edudeviation, decide2_purchases, decide2_health, gdi_s, gni_s, viol01_cluster, justifyIPV_cluster, iwi2, country, cluster1, ln_numb_of_children, lnage_wife, couple_is_illiterate), ]
+                          list(viol01_wife, couple_attitudes, Education, edudeviation, decide_purchases, decide_health, gdi, gni, viol01_cluster, justifyIPV_cluster, iwi2, country, cluster1, ln_numb_of_children, lnage_wife, literate_couple), ]
 
 ## z-standardize some numeric variables
-for(var in c("gni_s", "iwi2", "gdi_s")){
+for(var in c("gni", "iwi2", "gdi")){
     my.dt.clean[[var]] <- scale(my.dt.clean[[var]])
 }
 
@@ -553,11 +553,21 @@ df["cluster_id_unique_data"] = df["cluster1"].astype("category").cat.codes
 The «pandas« library in «python« has a function to create dummy variables, «get\_dummies()«. The argument «drop\_first=False« keeps the original columns, which often makes sense since otherwise the first value that happens to appear becomes the reference category. While the choice of reference category is generally not so important, in general make sure to choose a category that do not suffer from complete separation in an interaction term, since that makes the model fitting unnecessary hard. In this particular case, complete separation is not a concern.
 
 <<splines-data.preparation.dummy.variables.list, engine='python', cache = TRUE>>=
-dummy_vars = ["beat01_couple", "decide2_health", "decide2_purchases", "edudeviation", "couple_is_illiterate", "v149"]
-@ 
+dummy_vars = ["couple_attitudes", "decide_health", "decide_purchases", "edudeviation", "literate_couple", "Education"]
+@
+
+Adhere to the name scheme that pymc applies for parameters so that it will be easy to align parameters and values.
 
 <<splines-data.preparation.dummy.variables, engine='python', cache = TRUE>>=
 df = pd.get_dummies(df, prefix=dummy_vars, columns=dummy_vars, drop_first=False)
+def rename_columns(col_name, dummy_vars):
+    for var in dummy_vars:
+        if col_name.startswith(var + "_"):
+            level = col_name[len(var) + 1:]
+            return f"('{var}', '{level}')"
+    return col_name  # Leave unchanged if it's not a dummy variable
+
+df.columns = [rename_columns(col, dummy_vars) for col in df.columns]
 @
 
 \section{Create the splines}
@@ -642,8 +652,10 @@ plt.legend(title="Spline Index", loc="upper center", fontsize=8, ncol=6);
 
 % We could fit the model using B as a second model matrix, but then we would need to keep track of B when we make predictions too, which is ok as long as we only use the builtin methods for predictions. But I want to be able do post-processing in R, and that is easier if there is a single model matrix. Therefore, add B as columns that goes into the main data object df. Joshua Cooks example is thus not enough for us anymore, and we must find a slightly different way to build the model. However, Cooks way of incorporating B in the model (by including a pm.math.dot(np.asarray(B, order="F"), w.T) was indeed short and clever, and we can leave it in.
 
+The purpose of the construct ``('spline', k)'' is to mimic how pymc names parameters.
+
 <<splines-data.preparation.create.B_df, engine='python', results = 'markup', cache = TRUE>>=
-B_df = pd.DataFrame(B, columns=[f"spline, {i}" for i in range(B.shape[1])])
+B_df = pd.DataFrame(B, columns=[f"('spline', {i})" for i in range(B.shape[1])])
 @
 
 In the final model, «B\_df« will replace «justifyIPV\_cluster«, and while it would be possible to refer to them as they are, it is \emph{convenient} to have single unified data object, especially if we want to predict using R later on. Such a unified data frame is aquired by concatenating «df« and «B\_df«.
@@ -670,7 +682,6 @@ To actually predict probabilities, we also need to save the data frame that was 
 <<splines-save-the-model-matrix, engine='python', cache = TRUE>>=
 df.to_csv("ipv-women-model_matrix.csv", index=False)
 @ 
-
 
 <<splines-show-the-model-matrix, engine='python', cache = TRUE, results = "markup">>=
 df.columns
@@ -810,12 +821,11 @@ Before actually creating the model object, below defined as «my\_model«, it is
 <<splines-fit-model-1, engine = "python", results = "markup", cache = TRUE>>=
 import pymc as pm
 coords={
-    "couple_attitude_dims" : ["Husband justifys IPV", "Wife justifys IPV", "Both justify IPV"],
-    "education_dims" : ["Incomplete primary", "Complete primary", "Incomplete secondary", "Complete_secondary", "Higher"],
-    "decide_health_dims" : ["Health - husband decides", "Health - wife decides", "Healt - joint decisions"],
-    "decide_purchase_dims" : ["Purchase - husband decides", "Purchase - wife decides", "Purchase - joint decisions"],
-    "edudeviation_dims" : ["Husband has higer education", "Wife has higher education"],
-    "literate_couple_dims" : ["Husband illiterate", "Wife illiterate", "Both can read"],
+    "couple_attitude_dims" : ["Husband justifies IPV", "Wife justifies IPV", "Both justify IPV"],
+    "education_dims" : ["Incomplete primary", "Complete primary", "Incomplete secondary", "Complete secondary", "Higher"],
+    "decide_dims" : ["Husband decides", "Wife decides", "Joint decisions"],
+    "edudeviation_dims" : ["Husband has higher edu.", "Wife has higher edu."],
+    "literate_couple_dims" : ["Only wife can read", "Only husband can read", "Both can read"],
     "1|country_dims" : list(country_name),
     "1|cluster_dims" : list(cluster_name),
     "splines_dims": np.arange(B.shape[1])
@@ -840,9 +850,9 @@ Now add the three dummy variables, use the names defined in «coords« for «cou
 with my_model:
     couple_attitudes = pm.Normal("couple_attitudes", mu=0, sigma=1, dims = "couple_attitude_dims")
     interaction_terms = pm.Normal("interaction_terms", mu=0, sigma=1, dims = ["couple_attitude_dims", "splines_dims"])
-    education = pm.Normal("education", mu=0, sigma=1, dims = "education_dims")
-    decide_health = pm.Normal("decide_health", mu=0, sigma=1, dims = "decide_health_dims")
-    decide_purchase = pm.Normal("decide_purchase", mu=0, sigma=1, dims = "decide_purchase_dims")
+    Education = pm.Normal("Education", mu=0, sigma=1, dims = "education_dims")
+    decide_health = pm.Normal("decide_health", mu=0, sigma=1, dims = "decide_dims")
+    decide_purchases = pm.Normal("decide_purchases", mu=0, sigma=1, dims = "decide_dims")
     edudeviation = pm.Normal("edudeviation", mu=0, sigma=1, dims = "edudeviation_dims")
     literate_couple = pm.Normal("literate_couple", mu=0, sigma=1, dims = "literate_couple_dims")
     iwi2 = pm.Normal("iwi2", mu=0, sigma=1)
@@ -870,30 +880,30 @@ And the data for the fixed effects, first the factors.
 
 <<splines-fit-model-8, engine = "python", results = "markup", cache = TRUE>>=
 with my_model:
-    X_Husband_justifies_IPV = pm.Data("X_Husband_justifys_IPV", df["beat01_couple_Husband justifys IPV"])
-    X_Wife_justifies_IPV = pm.Data("X_Wife_justifys_IPV", df["beat01_couple_Wife justifys IPV"])
-    X_Both_justify_IPV = pm.Data("X_Both_justifys_IPV", df["beat01_couple_Both justify IPV"])
-    X_Health_husband_decides = pm.Data("X_Health_husband_decides", df["decide2_health_husband decides"])
-    X_Health_wife_decides = pm.Data("X_Health_wife_decides", df["decide2_health_wife decides"])
-    X_Health_joint_decisions = pm.Data("X_Health_joint_decisions", df["decide2_health_joint decisions"])
-    X_Purchases_husband_decides = pm.Data("X_Purchases_husband_decides", df["decide2_purchases_husband decides"])
-    X_Purchases_wife_decides = pm.Data("X_Purchases_wife_decides", df["decide2_purchases_wife decides"])
-    X_Purchases_joint_decisions = pm.Data("X_Purchases_joint_decisions", df["decide2_purchases_joint decisions"])
-    X_Husband_higher_edu = pm.Data("X_Husband_higher_edu", df["edudeviation_Husband has higher edu."])
-    X_Wife_higher_edu = pm.Data("X_Wife_higher_edu", df["edudeviation_Wife has higher edu."])
-    X_Husband_illiterate = pm.Data("X_Husband_illiterate", df["couple_is_illiterate_Only wife can read"])
-    X_Wife_illiterate = pm.Data("X_Wife_illiterate", df["couple_is_illiterate_Only husband can read"])
-    X_Both_illiterate = pm.Data("X_Both_lliterate", df["couple_is_illiterate_No one can read"])
-    X_incomplete_primary = pm.Data("X_incomplete_primary", df["v149_Incomplete primary"])
-    X_complete_primary = pm.Data("X_complete_primary", df["v149_Complete primary"])
-    X_incomplete_secondary = pm.Data("X_incomplete_secondary", df["v149_Incomplete secondary"])
-    X_complete_secondary = pm.Data("X_complete_secondary", df["v149_Complete secondary"])
-    X_higher = pm.Data("X_higher", df["v149_Higher"])
+    X_Husband_justifies_IPV = pm.Data("X_Husband_justifies_IPV", df["('couple_attitudes', 'Husband justifies IPV')"])
+    X_Wife_justifies_IPV = pm.Data("X_Wife_justifies_IPV", df["('couple_attitudes', 'Wife justifies IPV')"])
+    X_Both_justify_IPV = pm.Data("X_Both_justify_IPV", df["('couple_attitudes', 'Both justify IPV')"])
+    X_Health_husband_decides = pm.Data("X_Health_husband_decides", df["('decide_health', 'Husband decides')"])
+    X_Health_wife_decides = pm.Data("X_Health_wife_decides", df["('decide_health', 'Wife decides')"])
+    X_Health_joint_decisions = pm.Data("X_Health_joint_decisions", df["('decide_health', 'Joint decisions')"])
+    X_Purchases_husband_decides = pm.Data("X_Purchases_husband_decides", df["('decide_purchases', 'Husband decides')"])
+    X_Purchases_wife_decides = pm.Data("X_Purchases_wife_decides", df["('decide_purchases', 'Wife decides')"])
+    X_Purchases_joint_decisions = pm.Data("X_Purchases_joint_decisions", df["('decide_purchases', 'Joint decisions')"])
+    X_Husband_higher_edu = pm.Data("X_Husband_higher_edu", df["('edudeviation', 'Husband has higher edu.')"])
+    X_Wife_higher_edu = pm.Data("X_Wife_higher_edu", df["('edudeviation', 'Wife has higher edu.')"])
+    X_Husband_illiterate = pm.Data("X_Husband_illiterate", df["('literate_couple', 'Only wife can read')"])
+    X_Wife_illiterate = pm.Data("X_Wife_illiterate", df["('literate_couple', 'Only husband can read')"])
+    X_Both_literate = pm.Data("X_Both_literate", df["('literate_couple', 'Both can read')"])
+    X_incomplete_primary = pm.Data("X_incomplete_primary", df["('Education', 'Incomplete primary')"])
+    X_complete_primary = pm.Data("X_complete_primary", df["('Education', 'Complete primary')"])
+    X_incomplete_secondary = pm.Data("X_incomplete_secondary", df["('Education', 'Incomplete secondary')"])
+    X_complete_secondary = pm.Data("X_complete_secondary", df["('Education', 'Complete secondary')"])
+    X_higher = pm.Data("X_higher", df["('Education', 'Higher')"])
     X_iwi = pm.Data("X_iwi", df["iwi2"])
     X_lnage_wife = pm.Data("X_lnage_wife", df["lnage_wife"])
     X_ln_numb_of_children = pm.Data("X_ln_numb_of_children", df["ln_numb_of_children"])
-    X_gdi = pm.Data("X_gdi", df["gdi_s"])
-    X_gni = pm.Data("X_gni", df["gni_s"])
+    X_gdi = pm.Data("X_gdi", df["gdi"])
+    X_gni = pm.Data("X_gni", df["gni"])
     B_ = pm.Data("B", np.asarray(B))
 @
 
@@ -911,19 +921,19 @@ with my_model:
     X_Health_husband_decides * decide_health[0] + \
     X_Health_wife_decides * decide_health[1] + \
     X_Health_joint_decisions * decide_health[2] + \
-    X_Purchases_husband_decides * decide_purchase[0] + \
-    X_Purchases_wife_decides * decide_purchase[1] + \
-    X_Purchases_joint_decisions * decide_purchase[2] + \
+    X_Purchases_husband_decides * decide_purchases[0] + \
+    X_Purchases_wife_decides * decide_purchases[1] + \
+    X_Purchases_joint_decisions * decide_purchases[2] + \
     X_Husband_higher_edu * edudeviation[0] + \
     X_Wife_higher_edu * edudeviation[1] + \
     X_Husband_illiterate * literate_couple[0] + \
     X_Wife_illiterate * literate_couple[1] + \
-    X_Both_illiterate * literate_couple[2] + \
-    X_incomplete_primary * education[0] + \
-    X_complete_primary * education[1] + \
-    X_incomplete_secondary * education[2] + \
-    X_complete_secondary * education[3] + \
-    X_higher * education[4] + \
+    X_Both_literate * literate_couple[2] + \
+    X_incomplete_primary * Education[0] + \
+    X_complete_primary * Education[1] + \
+    X_incomplete_secondary * Education[2] + \
+    X_complete_secondary * Education[3] + \
+    X_higher * Education[4] + \
     X_iwi * iwi2 + \
     X_lnage_wife * lnage_wife + \
     X_ln_numb_of_children * ln_numb_of_children + \
@@ -948,9 +958,6 @@ with my_model:
 @
 
 \subsection{Start sampling parameter values}
-I think that during the tuning process, the «NUTS« sampler rescale the dimensions of the parameter space, so that the risk of divergencies is reduced and an appropriate step size is calibrated.
-
-If you have a graphical processing unit (GPU) from «nvidia«, then install «jax« with gpu support. The code below will use the «numpyro\_nuts« sampler, which is built on top of «jax«, if «jax« is installed, and fall back to the native «pymc« «NUTS« sampler which uses CPU if «jax« is not installed. To be able to post process the parameter samples, these are saved  to disk with the function «dump()« in the library «pickle«. («batches=2« is my own invention, which reduces the RAM requirements on the GPU).
 
 <<splines-fit-model-12, engine = "python", results = "markup", cache = TRUE, echo = TRUE>>=
 import pickle
@@ -959,7 +966,7 @@ import arviz
 
 try:
     with my_model:
-        my_fit_pymc = pymc.sampling.jax.sample_numpyro_nuts(random_seed=1234, tune=200, draws=400, target_accept=0.8, chains = 2, chain_method='parallel', idata_kwargs=dict(log_likelihood=False), postprocessing_backend="cpu", progressbar = False)
+        my_fit_pymc = pymc.sampling.jax.sample_numpyro_nuts(random_seed=1234, tune=200, draws=500, target_accept=0.8, chains = 2, chain_method='parallel', idata_kwargs=dict(log_likelihood=False), postprocessing_backend="cpu", progressbar = False)
 except ImportError as e:
     with my_model:
         my_fit_pymc = pm.sample(random_seed=1234, tune=500, draws=200, target_accept=0.8, chains = 2, chain_method='parallel', cores=4, idata_kwargs=dict(log_likelihood=False), postprocessing_backend="cpu", progressbar = False)
@@ -1005,8 +1012,7 @@ ipv.mm <- read.csv("ipv-women-model_matrix.csv", check.names = FALSE)
 params <- read.csv("ipv-women-splines.csv", check.names = FALSE)
 
 my.recodes <- "'True' = 1; 'False' = 0"
-## attitudes <- c("_Wife & husband accept IPV", "_Husband accept IPV", "_Wife accept IPV")
-attitudes <- c("beat01_couple_Both justify IPV", "beat01_couple_Husband justifys IPV", "beat01_couple_Wife justifys IPV")
+attitudes <- c("('couple_attitudes', 'Both justify IPV')", "('couple_attitudes', 'Husband justifies IPV')", "('couple_attitudes', 'Wife justifies IPV')")
 
 couple_attitudes <- cbind(sapply(c(attitudes), function(x) {
     car::recode(ipv.mm[[x]], recodes = my.recodes)                            
@@ -1015,29 +1021,35 @@ couple_attitudes <- cbind(sapply(c(attitudes), function(x) {
 ## dynamically adjust to any number of splines
 ## splines.iterator <- 0:py$num_knots
 splines.iterator <- 0:2
-my.spline.names <- paste0("spline, ", splines.iterator)
+my.spline.names <- paste0("('spline', ", splines.iterator, ")")
 interaction_terms <- as.data.frame(sapply(c(attitudes), function(attitude) {
     sapply(my.spline.names, function(spline){
         return(car::recode(ipv.mm[[attitude]], recodes = my.recodes) *
             ipv.mm[[spline]])
     }, simplify = FALSE)
 }, simplify = FALSE), check.names = FALSE)
+## The names of interaction_terms needs to be modified from
+## "('couple_attitudes', 'Husband justifies IPV').('spline', 2)" to
+## "('interaction_terms', 'Husband justifies IPV', 2)"
+## the dot is presumable from the nested sapply construct
+names(interaction_terms) <- gsub("couple_attitudes", "interaction_terms", names(interaction_terms))
+## remove the extra bits
+names(interaction_terms) <- gsub(").('spline'", "", names(interaction_terms), fixed = TRUE)
 
-
-education <- cbind(sapply(c("v149_Complete primary", "v149_Complete secondary", "v149_Higher", "v149_Incomplete primary", "v149_Incomplete secondary"), function(educational.level){
+education <- cbind(sapply(c("('Education', 'Complete primary')", "('Education', 'Complete secondary')", "('Education', 'Higher')", "('Education', 'Incomplete primary')", "('Education', 'Incomplete secondary')"), function(educational.level){
     car::recode(ipv.mm[[educational.level]], recodes = my.recodes)
 }))
 
 dummies <- cbind(sapply(c(
-    "decide2_health_joint decisions", "decide2_health_husband decides", "decide2_health_wife decides",
-    "decide2_purchases_husband decides", "decide2_purchases_joint decisions", "decide2_purchases_wife decides",
-    "edudeviation_Husband has higher edu.", "edudeviation_Wife has higher edu.",
-    "couple_is_illiterate_Both can read", "couple_is_illiterate_Only wife can read", "couple_is_illiterate_Only husband can read"
+    "('decide_health', 'Joint decisions')", "('decide_health', 'Husband decides')", "('decide_health', 'Wife decides')",
+    "('decide_purchases', 'Husband decides')", "('decide_purchases', 'Joint decisions')", "('decide_purchases', 'Wife decides')",
+    "('edudeviation', 'Husband has higher edu.')", "('edudeviation', 'Wife has higher edu.')",
+    "('literate_couple', 'Both can read')", "('literate_couple', 'Only wife can read')", "('literate_couple', 'Only husband can read')"
     ), function (dummy){
         car::recode(ipv.mm[[dummy]], recodes = my.recodes)        
     }))
 
-as.is <- ipv.mm[c("iwi2", "lnage_wife", "ln_numb_of_children", "gdi_s", "gni_s", my.spline.names)]
+as.is <- ipv.mm[c("iwi2", "lnage_wife", "ln_numb_of_children", "gdi", "gni", my.spline.names)]
 
 my.mm <- cbind(Intercept = rep(1, nrow(ipv.mm)), couple_attitudes, interaction_terms, education, dummies, as.is)
 
@@ -1078,7 +1090,7 @@ Build one small model matrix for each level of the factor variable.
 \end{itemize}
 
 <<splines-mm-to-predict-for>>=
-mm.by.attitude.f <- function(this.attitude){
+mm.by.attitude.f <- function(this.attitude){   
     ## Duplicate the mean matrix
     mean.matrix.replicated <- do.call(rbind, replicate(length(quantiles), t(mean.matrix), simplify = FALSE))
     ## Copy the values of splines
@@ -1091,6 +1103,9 @@ mm.by.attitude.f <- function(this.attitude){
             mean.matrix.replicated[, dummy.var] <- rep(0, length(quantiles))
         }
     }
+
+    this.attitude <- gsub("couple_attitudes", "interaction_terms", this.attitude)
+    
     ## Interaction terms
     interaction_terms <- unlist(sapply(c(attitudes), function(attitude) {
         sapply(my.spline.names, function(spline){
@@ -1098,12 +1113,31 @@ mm.by.attitude.f <- function(this.attitude){
         }, simplify = FALSE)
     }, simplify = FALSE), recursive = FALSE)
     ## overwrite values in mean.matrix.replicated with the newly calculated values
+
+    ## However, the names in the mean.matrix, is not the same as the names in interaction_terms
+    ## The names of interaction_terms needs to be modified from
+    ## "('couple_attitudes', 'Husband justifies IPV').('spline', 2)" to
+    ## "('interaction_terms', 'Husband justifies IPV', 2)"
+    ## the dot is presumable from the nested sapply construct
+    
+    names(interaction_terms) <- gsub("couple_attitudes", "interaction_terms", names(interaction_terms))
+    ## remove the extra bits
+    names(interaction_terms) <- gsub(").('spline'", "", names(interaction_terms), fixed = TRUE)
+
+    
     for(interaction.term in names(interaction_terms)){
         mean.matrix.replicated[, interaction.term] <- interaction_terms[[interaction.term]]
     }
+
+    ## order the columns in mms so that the align with the columns in params.
+    my.order <- match(colnames(params), colnames(mean.matrix.replicated))
+    mean.matrix.replicated <- mean.matrix.replicated[, my.order]
+    
     return(mean.matrix.replicated)
 }
+
 mms <- sapply(c("None justifys IPV", attitudes), mm.by.attitude.f, simplify = FALSE)
+
 @
 
 Verify that the parameters and the values are aligned, see the result in table \vref{tab:alignment}.
@@ -1138,7 +1172,7 @@ results <- sapply(mms, function(my.mm){
 
 Plot the predicted probabilities.
 
-<<splines-plot-predictions, fig.cap = "Predicted probabilities for a woman to be exposed to IPV conditioned on the attitudes in the couple and the attitudes of the other women in the local area.", fig.width = 6, fig.align = "center">>=
+<<splines-plot-predictions, fig.cap = "Predicted probabilities for a woman to be exposed to IPV conditioned on the attitudes in the couple and the attitudes of the other women in the local area.", fig.height=4, fig.width = 6, fig.align = "center", dev="png">>=
 par(mar = c(4, 5, 5, 14))
 plot(y = results[["None justifys IPV"]]["50%",],
      x = interesting.points[["justifyIPV_cluster"]],
@@ -1161,13 +1195,13 @@ for(i in 1:length(my.names)){
 legend("right",
        title = "Justifications in the couple",
        legend = c("No one justifies IPV", "Husband justifies IPV", 
-                  "Wife justifies IPV", "Wife \\& husband justify IPV"), 
+                  "Wife justifies IPV", "Wife & husband justify IPV"), 
        col = c("red", "lightgreen", "orange", "darkgreen"), 
        lwd = 2, 
        lty = 1, 
        bty = "n", 
        ncol = 1,
-       inset = c(-.8, 0),
+       inset = c(-1.3, 0),
        xpd = TRUE
 )
 
