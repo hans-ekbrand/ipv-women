@@ -1150,7 +1150,7 @@ check.alignment.tab <- data.frame(Parameters = dimnames(params.matrix)[[2]],
 \begin{footnotesize}
 <<splines-verify-alignment, results="asis", echo = FALSE>>=
 library(xtable)
-print(xtable(check.alignment.tab, label = "tab:alignment", caption = "Verify that the model matrix and the parameters matrix are aligned, ie that the row ordering is the same in both."), booktabs = TRUE)
+print(xtable(check.alignment.tab, label = "tab:alignment", caption = "Verify that the model matrix and the parameters matrix are aligned, ie that the column ordering is the same in both."), booktabs = TRUE)
 @
 \end{footnotesize}
 
