@@ -574,7 +574,7 @@ countries.codes.asia <- c("Andaman And Nicobar Islands",
    "Punjab", "Rajasthan", "Sikkim", "Tamil Nadu",
    "Telangana", "Tripura", "Uttar Pradesh", "Uttarakhand",
    "West Bengal", "Cambodia", "Pakistan", "Myanmar", "Nepal", "Philippines", "Bangladesh")
-n.persons.exposure.asia <- my.dt.clean[country %in%
+n.persons.exposure.asia <- my.dt[country %in%
   countries.codes.asia, length(which(is.na(viol01_wife)
   == FALSE)), ]
 n.local.areas.exposure.asia <- my.dt[country %in% countries.codes.asia &
@@ -585,7 +585,7 @@ n.surveys.exposure.asia <- length(unique(sapply(strsplit(as.character(
 
 n.persons.attitudes.asia <- my.dt[country %in% countries.codes.asia, length(which(is.na(woman.thinks.IPV.can.be.justified) == FALSE)), ]
 n.local.areas.attitudes.asia <- my.dt[country %in% countries.codes.asia &
-  is.na(beat01_couple) == FALSE, length(unique(ClusterID)), ]
+  is.na(couple_attitudes) == FALSE, length(unique(ClusterID)), ]
 n.surveys.attitudes.asia <- length(unique(sapply(strsplit(as.character(my.dt$ClusterID), ".", fixed = TRUE), function(x) { paste(x[c(1, 3)], collapse = ".") })))
 
 countries.africa <- c(Madagascar, Egypt, West, South.and.east)
