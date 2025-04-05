@@ -160,6 +160,8 @@ my.dt <- my.dt[which(is.na(woman.exposed.to.IPV) == FALSE |
 
 gc(verbose = FALSE)
 
+save(my.dt, file = "full.set.RData")
+
 contextuals.f <- function(var.name, my.dt){
     ## make var.name a binary variable
     my.dt$source.var <- ifelse(my.dt[[var.name]] == 1, TRUE, FALSE)
