@@ -562,6 +562,32 @@ save(my.dt.clean, file = "my.dt.clean.RData")
 justifyIPV_cluster <- my.dt[which(! is.na(lon) & ! is.na(justifyIPV_cluster)), list(country.code.ISO.3166.alpha.3, lon, lat, justifyIPV_cluster), ]
 viol01_cluster <- my.dt[which(! is.na(lon) & ! is.na(viol01_cluster)), list(country.code.ISO.3166.alpha.3, lon, lat, viol01_cluster), ]
 
+## also calculate some statistics.
+
+countries.codes.asia <- c("Andaman And Nicobar Islands",
+   "Andhra Pradesh", "Arunachal Pradesh", "Assam",
+   "Bihar", "Chandigarh", "Chhattisgarh", "Goa", "Gujarat",
+   "Haryana", "Himachal Pradesh", "Jammu And Kashmir",
+   "Jharkhand", "Karnataka", "Kerala", "Lakshadweep",
+   "Madhya Pradesh", "Maharashtra", "Manipur", "Meghalaya",
+   "Mizoram", "Nagaland", "New Delhi", "Odisha", "Puducherry",
+   "Punjab", "Rajasthan", "Sikkim", "Tamil Nadu",
+   "Telangana", "Tripura", "Uttar Pradesh", "Uttarakhand",
+   "West Bengal", "Cambodia", "Pakistan", "Myanmar", "Nepal", "Philippines", "Bangladesh")
+n.persons.exposure.asia <- my.dt.clean[country %in%
+  countries.codes.asia, length(which(is.na(viol01_wife)
+  == FALSE)), ]
+n.local.areas.exposure.asia <- my.dt[country %in% countries.codes.asia &
+  is.na(viol01_wife) == FALSE, length(unique(cluster1)), ]
+n.surveys.exposure.asia <- length(unique(sapply(strsplit(as.character(
+    my.dt$cluster1), ".", fixed = TRUE), function(x) {
+        paste(x[c(1, 3)], collapse = ".") })))
+
+n.persons.attitudes.asia <- my.dt[country %in% countries.codes.asia, length(which(is.na(woman.thinks.IPV.can.be.justified) == FALSE)), ]
+n.local.areas.attitudes.asia <- my.dt[country %in% countries.codes.asia &
+  is.na(beat01_couple) == FALSE, length(unique(cluster1)), ]
+n.surveys.attitudes.asia <- length(unique(sapply(strsplit(as.character(my.dt$cluster1), ".", fixed = TRUE), function(x) { paste(x[c(1, 3)], collapse = ".") })))
+
 @
 
 Start python.
@@ -1591,25 +1617,6 @@ if(is.null(results[[2]]) == FALSE){
 Calculate sample size for Exposure in Asia
 
 <<n.stats, tidy = FALSE>>=
-countries.codes.asia <- c("Andaman And Nicobar Islands",
-   "Andhra Pradesh", "Arunachal Pradesh", "Assam",
-   "Bihar", "Chandigarh", "Chhattisgarh", "Goa", "Gujarat",
-   "Haryana", "Himachal Pradesh", "Jammu And Kashmir",
-   "Jharkhand", "Karnataka", "Kerala", "Lakshadweep",
-   "Madhya Pradesh", "Maharashtra", "Manipur", "Meghalaya",
-   "Mizoram", "Nagaland", "New Delhi", "Odisha", "Puducherry",
-   "Punjab", "Rajasthan", "Sikkim", "Tamil Nadu",
-   "Telangana", "Tripura", "Uttar Pradesh", "Uttarakhand",
-   "West Bengal", "KHM", "PAK", "MMR", "NPL", "PHL", "BGD")
-n.persons.exposure.asia <- my.dt.clean[country %in%
-  countries.codes.asia, length(which(is.na(viol01_wife)
-  == FALSE)), ]
-n.local.areas.exposure.asia <- my.dt.clean[country %in%
-  countries.codes.asia &
-  is.na(viol01_wife) == FALSE, length(unique(cluster1)), ]
-n.surveys.exposure.asia <- length(unique(sapply(strsplit(as.character(
-    my.dt.clean$cluster1), ".", fixed = TRUE), function(x) {
-        paste(x[c(1, 3)], collapse = ".") })))
 
 @ 
 
@@ -1644,7 +1651,7 @@ plot(gray.countries, col = "gray80", add = TRUE, border = "darkgreen", lwd = 0.5
 Repeat with attitudes to IPV.
 
 <<n.stats.attitudes.asia>>=
-n.persons.attitudes.asia <- my.dt.clean[country %in% countries.codes.asia, length(which(is.na(beat01_couple) == FALSE)), ]
+n.persons.attitudes.asia <- my.dt.clean[country %in% countries.codes.asia, length(which(is.na(woman.thinks.IPV.can.be.justified) == FALSE)), ]
 n.local.areas.attitudes.asia <- my.dt.clean[country %in% countries.codes.asia &
   is.na(beat01_couple) == FALSE, length(unique(cluster1)), ]
 n.surveys.attitudes.asia <- length(unique(sapply(strsplit(as.character(my.dt.clean$cluster1), ".", fixed = TRUE), function(x) { paste(x[c(1, 3)], collapse = ".") })))
