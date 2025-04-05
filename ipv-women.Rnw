@@ -683,10 +683,6 @@ To actually predict probabilities, we also need to save the data frame that was 
 df.to_csv("ipv-women-model_matrix.csv", index=False)
 @ 
 
-<<splines-show-the-model-matrix, engine='python', cache = TRUE, results = "markup">>=
-df.columns
-@ 
-
 \section{Create the model}
 
 Before creating the model in PyMC, let us define it mathematically.
