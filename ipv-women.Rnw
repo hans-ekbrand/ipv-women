@@ -578,10 +578,10 @@ countries.codes.asia <- c("Andaman And Nicobar Islands",
 my.dt[, country := factor(globallivingconditions::iso.3166$String[match(country.code.ISO.3166.alpha.3, globallivingconditions::iso.3166$numeric)]), ]
 
 n.persons.exposure.asia <- my.dt[country %in%
-  countries.codes.asia, length(which(is.na(viol01_wife)
+  countries.codes.asia, length(which(is.na(woman.exposed.to.IPV)
   == FALSE)), ]
 n.local.areas.exposure.asia <- my.dt[country %in% countries.codes.asia &
-  is.na(viol01_wife) == FALSE, length(unique(ClusterID)), ]
+  is.na(woman.exposed.to.IPV) == FALSE, length(unique(ClusterID)), ]
 n.surveys.exposure.asia <- length(unique(sapply(strsplit(as.character(
     my.dt$ClusterID), ".", fixed = TRUE), function(x) {
         paste(x[c(1, 3)], collapse = ".") })))
@@ -591,7 +591,12 @@ n.local.areas.attitudes.asia <- my.dt[country %in% countries.codes.asia &
   is.na(couple_attitudes) == FALSE, length(unique(ClusterID)), ]
 n.surveys.attitudes.asia <- length(unique(sapply(strsplit(as.character(my.dt$ClusterID), ".", fixed = TRUE), function(x) { paste(x[c(1, 3)], collapse = ".") })))
 
-countries.africa <- c(Madagascar, Egypt, West, South.and.east)
+countries.africa <- c("Madagascar", "Egypt", "Benin", "Burkina Faso", "Cameroon", "Chad", "Côte d'Ivoire", "Gabon",
+          "Ghana", "Guinea", "Liberia", "Mali", "Mauritania", "Nigeria",
+          "Senegal", "Gambia", "Sierra Leone", "Togo", "Zambia", "Zimbabwe", "South Africa",
+     "United Republic of Tanzania", "Uganda", "Rwanda", "Namibia", "Mozambique",
+     "Malawi", "Lesotho", "Kenya", "Ethiopia",
+     "Democratic Republic of the Congo", "Burundi", "Angola")
 n.persons.attitudes.africa <- my.dt[country %in% countries.africa &
                                         is.na(lon) == FALSE,
                                length(which(is.na(couple_attitudes) == FALSE)), ]
@@ -604,14 +609,14 @@ n.surveys.attitudes.africa <- length(unique(sapply(strsplit(as.character(
 
 n.persons.exposure.africa <- my.dt[country %in% countries.africa &
                                         is.na(lon) == FALSE,
-                               length(which(is.na(viol01_wife) == FALSE)), ]
+                               length(which(is.na(woman.exposed.to.IPV) == FALSE)), ]
 n.local.areas.exposure.africa <- my.dt[country %in% countries.africa &
                                              is.na(lon) == FALSE &
-                                             is.na(viol01_wife) == FALSE,
+                                             is.na(woman.exposed.to.IPV) == FALSE,
                                              length(unique(ClusterID)), ]
 n.surveys.exposure.africa <- length(unique(sapply(strsplit(as.character(
     my.dt[country %in% countries.africa &
-                is.na(viol01_wife) == FALSE &
+                is.na(woman.exposed.to.IPV) == FALSE &
                 is.na(lon) == FALSE, ClusterID]),
     ".", fixed = TRUE), function(x) { paste(x[c(1, 3)], collapse = ".") })))
 
