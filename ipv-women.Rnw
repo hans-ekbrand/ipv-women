@@ -574,6 +574,9 @@ countries.codes.asia <- c("Andaman And Nicobar Islands",
    "Punjab", "Rajasthan", "Sikkim", "Tamil Nadu",
    "Telangana", "Tripura", "Uttar Pradesh", "Uttarakhand",
    "West Bengal", "Cambodia", "Pakistan", "Myanmar", "Nepal", "Philippines", "Bangladesh")
+
+my.dt[, country := factor(globallivingconditions::iso.3166$String[match(country.code.ISO.3166.alpha.3, globallivingconditions::iso.3166$numeric)]), ]
+
 n.persons.exposure.asia <- my.dt[country %in%
   countries.codes.asia, length(which(is.na(viol01_wife)
   == FALSE)), ]
@@ -582,8 +585,6 @@ n.local.areas.exposure.asia <- my.dt[country %in% countries.codes.asia &
 n.surveys.exposure.asia <- length(unique(sapply(strsplit(as.character(
     my.dt$ClusterID), ".", fixed = TRUE), function(x) {
         paste(x[c(1, 3)], collapse = ".") })))
-
-my.dt[, country := factor(globallivingconditions::iso.3166$String[match(country.code.ISO.3166.alpha.3, globallivingconditions::iso.3166$numeric)]), ]
 
 n.persons.attitudes.asia <- my.dt[country %in% countries.codes.asia, length(which(is.na(woman.thinks.IPV.can.be.justified) == FALSE)), ]
 n.local.areas.attitudes.asia <- my.dt[country %in% countries.codes.asia &
