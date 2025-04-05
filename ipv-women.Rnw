@@ -583,6 +583,8 @@ n.surveys.exposure.asia <- length(unique(sapply(strsplit(as.character(
     my.dt$ClusterID), ".", fixed = TRUE), function(x) {
         paste(x[c(1, 3)], collapse = ".") })))
 
+my.dt[, country := factor(globallivingconditions::iso.3166$String[match(country.code.ISO.3166.alpha.3, globallivingconditions::iso.3166$numeric)]), ]
+
 n.persons.attitudes.asia <- my.dt[country %in% countries.codes.asia, length(which(is.na(woman.thinks.IPV.can.be.justified) == FALSE)), ]
 n.local.areas.attitudes.asia <- my.dt[country %in% countries.codes.asia &
   is.na(couple_attitudes) == FALSE, length(unique(ClusterID)), ]
