@@ -316,14 +316,106 @@ my.dt[, man.is.illiterate := NULL, ]
 my.dt[, husband.is.illiterate := NULL, ]
 my.dt[, wife.is.illiterate := NULL, ]
 
-## use only the totals from GDL.
+## For all data points that we have coordinates for, we use
+## point-in-polygon techniques to match Subnational GDI and
+## Subnational GNI from the Global Data Lab.
+
+## Afghanistan lacks coordinate data, but the region names used by DHS
+## corresponds the 34 gadm areas at level 1, so with good enough
+## precision we can locate each case. For Afghanistan the polygons
+## provided by the GDL are coarser so precision is not lost.
+
+## Step 1, match RegionID from DHS with names of GADM region level 1
+Afghanistan.Region.ID.from.dhs <- car::recode(my.dt[country.code.ISO.3166.alpha.3 == 4, substring(RegionID, 4), ], recodes = "'Helmand' = 'Hilmand'; 'Herat' = 'Hirat'; 'Kunarha' = 'Kunar'; 'Nooristan' = 'Nuristan'; 'Panjsher' = 'Panjshir'; 'Sar-e-pul' = 'SariPul'; 'Urozgan' = 'Uruzgan'")
+
+## Update the RegionID in my.dt for these cases.
+my.dt[country.code.ISO.3166.alpha.3 == 4, RegionID := paste0("AF.", Afghanistan.Region.ID.from.dhs), ]
+
+## For each unique value of RegionID, count the number of clusters
+n.per.region <- my.dt[country.code.ISO.3166.alpha.3 == 4, length(unique(ClusterID)), by = RegionID]
+clusters.per.region <- my.dt[country.code.ISO.3166.alpha.3 == 4, unique(ClusterID), by = RegionID]
+
+## For now, just sample coordinates in the correct GADM region.
+## sampling points using the spatstat.random::rpoint(), which requires projected polygons
+
+## Get polygons for level 1 in Afghanistan
+## Define the URL and destination file
+if(! file.exists("gadm41_AFG_1.json.zip")){
+    url <- "https://geodata.ucdavis.edu/gadm/gadm4.1/json/gadm41_AFG_1.json.zip"
+    destfile <- "gadm41_AFG_1.json.zip"
+
+    ## Download the file
+    utils::download.file(url, destfile, mode = "wb")
+
+    ## Unzip the file
+    utils::unzip(destfile)
+}
+
+## read the shapes
+afghanistan <- sf::st_read(paste("gadm41_AFG_1.json"))
+
+## project the shapes
+afghanistan.level1.projected <- sf::st_transform(afghanistan[, "NAME_1"], "EPSG:3857")
+
+sample.points.f <- function(gadm.region.name, n, polygons){
+    my.win <- spatstat.geom::as.owin(polygons[match(gadm.region.name, polygons$NAME_1), ])
+    spatstat.random::rpoint(n = n, win = my.win)
+}
+
+## Generate coordinates for all cases from Afghanistan based on their RegionID by sampling.
+afghanistan.coordinates = data.table::rbindlist(sapply(unique(Afghanistan.Region.ID.from.dhs), function(region.name) {
+    my.n <- n.per.region$V1[match(paste0("AF.", region.name), n.per.region$RegionID)]
+    points_sampled <- sample.points.f(gadm.region.name = region.name, n = my.n, polygons = afghanistan.level1.projected)
+    ## Convert to sf
+    sf_points <- sf::st_as_sf(data.frame(x = points_sampled$x, y = points_sampled$y), 
+                          coords = c("x", "y"), crs = 3857)
+
+    ## Transform to lon/lat (EPSG 4326)
+    sf_points_lonlat <- sf::st_transform(sf_points, crs = 4326)
+
+    ## Extract coordinates
+    coords <- sf::st_coordinates(sf_points_lonlat)
+
+    ## Find the unique ClusterID:s in this region.
+    ClusterID = as.character(clusters.per.region$V1[clusters.per.region$RegionID %in% paste0("AF.", region.name)])
+    
+    return(data.table::data.table(ClusterID, lon = coords[, "X"], lat=coords[, "Y"]))
+}, simplify = FALSE))
+
+## impute longitude and latitude for the cases from Afghanistan
+
+for(i in 1:nrow(afghanistan.coordinates)){
+    these <- which(my.dt$ClusterID == afghanistan.coordinates$ClusterID[i])
+    my.dt[these, lon := rep(afghanistan.coordinates$lon[i], length(these)), ]
+    my.dt[these, lat := rep(afghanistan.coordinates$lat[i], length(these)), ]    
+}
+
 gdi <- setDT(read.csv(paste0(gdl.path, "GDL-Subnational-GDI-data.csv"), check.names = FALSE))
 ## keep only the necessary columns from hdi and gdi
 ## GDI has no data in columns "older" than 2000
 my.cols <- c("GDLCODE", 2000:2022)
 gdi.clean <- gdi[ , my.cols, with = FALSE]
 
-## convert gdi.clean from wide to lon
+## use st_intersects() to map points to polygons
+## apply st_intersects() only once per unique coordinate
+## create the set of all unique points
+unique.pts <- unique(na.omit(my.dt[, list(lon, lat), ]))
+sf_points <- sf::st_as_sf(unique.pts, coords = c("lon", "lat"), crs = 4326)
+
+## There are four invalid polygons in gdl.polygons, correct them.
+## invalid_polygons <- which(!st_is_valid(gdl.polygons))
+## invalid_polygons
+## [1]  105  544 1414 1667
+gdl.polygons <- sf::st_make_valid(sf::st_read(paste0(gdl.path, "GDL Shapefiles V6.4")))
+gdl.classification <- sf::st_intersects(sf_points, gdl.polygons)
+## Get the area names from the result of st_intersects
+indices <- sapply(gdl.classification, function(x) { x[1] })
+gdl.codes <- gdl.polygons$gdlcode[indices]
+unique.pts$GDLCODE <- gdi.clean$GDLCODE[match(gdl.codes, gdi.clean$GDLCODE)]
+unique.pts[, lon.lat.identifier := paste(lon, lat, sep = "."), ]
+unique.pts.clean <- unique.pts[ , list(lon.lat.identifier, GDLCODE), ]
+
+## convert gdi.clean from wide to long
 # Convert to long format
 gdi.long <- melt(gdi.clean, id.vars = "GDLCODE", 
                 variable.name = "year.of.interview", 
@@ -342,12 +434,28 @@ gdi.long[, year.of.interview := as.numeric(as.character(year.of.interview)), ]
 
 ## Now that we know which GLDCODE for which coordinate, create a data set with ClusterID, coordinates, and year, and add the GDL data to that set.
 
-## Use the GDL code that corresponds to the "total" version for the country.
-my.temp.set <- unique(my.dt[, list(ClusterID, year.of.interview, GDLCODE = paste0(globallivingconditions::iso.3166$String.code[match(country.code.ISO.3166.alpha.3, globallivingconditions::iso.3166$numeric)], "t")), ])
+## ## Use the GDL code that corresponds to the "total" version for the country.
+## my.temp.set <- unique(my.dt[, list(ClusterID, year.of.interview, GDLCODE = paste0(globallivingconditions::iso.3166$String.code[match(country.code.ISO.3166.alpha.3, globallivingconditions::iso.3166$numeric)], "t")), ])
 
-setkey(my.temp.set, GDLCODE, year.of.interview)
+## No, use coordinate data if it exists.
+my.temp.set <- unique(my.dt[which(is.na(lon) == FALSE), list(ClusterID, lon.lat.identifier = paste(lon, lat, sep = "."), year.of.interview), ])
+
+## add GDLCODE to my.temp.set, using unique.pts.clean
+setkey(my.temp.set, lon.lat.identifier)
+setkey(unique.pts.clean, lon.lat.identifier)
+my.temp.set.2 <- merge(my.temp.set, unique.pts.clean)
+## The lon.lat.identifier is no longer useful
+my.temp.set.2[, lon.lat.identifier := NULL, ]
+
+## Now, add those clusters for which we do not have any lon, lat
+my.no.lon.lat.set <- unique(my.dt[which(is.na(lon) & ClusterID %in% my.temp.set.2$ClusterID == FALSE), list(ClusterID, year.of.interview, GDLCODE = paste0(globallivingconditions::iso.3166$String.code[match(country.code.ISO.3166.alpha.3, globallivingconditions::iso.3166$numeric)], "t")), ])
+
+## Add the set of cases matched on lon, lat and the set of cases based on total for the country.
+my.temp.set.3a <- rbind(my.no.lon.lat.set, my.temp.set.2)
+
+setkey(my.temp.set.3a, GDLCODE, year.of.interview)
 setkey(gdi.long, GDLCODE, year.of.interview)
-my.temp.set.3 <- merge(my.temp.set, gdi.long)
+my.temp.set.3 <- merge(my.temp.set.3a, gdi.long)
 
 ## Repeat with GNI
 ## Gross National Income per Capita in 1000 US-Dollars (2011 PPP)
@@ -436,8 +544,6 @@ if(length(these) > 0){
     }))
 }
 
-## TODO: Use Subnational GNI and GDI in India too, use Björns work to match Indian "countries" with GDLCODEs
-
 ## Make factors, so that the levels are clear
 for(var in names(which(sapply(my.dt.clean, class) == "character"))){
     my.dt.clean[[var]] <- factor(my.dt.clean[[var]])
@@ -447,7 +553,7 @@ write.csv(my.dt.clean, file = "ipv-women-no-gis-matching.csv", row.names = FALSE
 save(my.dt.clean, file = "my.dt.clean.RData")
 
 ## Create the two sets needed for kriging: these need to have
-## non-missing on lon, lat, but justifyIPV_cluster does not required
+## non-missing on lon, lat, but justifyIPV_cluster is not required
 ## the cases to have non-missing on viol01_cluster. Since
 ## justifyIPV_cluster is asked in more surveys, use that extra data!
 
@@ -1205,6 +1311,507 @@ legend("right",
 
 \section{Kriging}
 
+\section{Mapping IPV - Exposure and Attitudes }
+
+Apply \href{Kriging}{https://en.wikipedia.org/wiki/Kriging} on the data. Kriging gives a predicted smooth surface for the estimate of the dependent variable in an area. While Kriging can use (multiple) independent variables in this estimation, here it is used without any independent variables, so the input data used is only the coordinates the observations, and the observed value on the dependent variable at those coordinates. The procedure is applied on two different outcomes, the proportion of women in local area who thinks IPV can be justified, and the proportion of women in the local area that have experienced IPV by their current husband. Technically, Kriging predicts values for a large number of points in a grid covering the area of interest, and the resolution of the grid, the width and height of each cell, was set to 10 kilometers, i.e. 100 square kilometers. Disconnected areas, e.g. islands, were estimated separately while all adjacent countries were estimated together. For South east Asia, the total number of cells for which we estimated a value is 64287; Africa and Madagascar covered [fill in number here].
+
+The coordinate data is originally in longitude and latitude, i.e. referencing locations on a sphere. The Kriging algorithm assumes a flat coordinate system, so we project the coordinate data to the webmercator refence system (the code for the webmercator system is «EPSG:3857«)
+
+In rare cases a single local area can be surveyd twice, or the random replacement algorithm DHS uses to enhance the integrity of the respondends can make two different areas end up having the sam coordinate, but the the Kriging algorithm in use here assumes a single unique values per coordinate. To solve this, we calculate the mean value for all unique coordinates.
+
+We have made two versions of these maps: one version uses only the latest measurements of IPV and attitudes toward IPV, the over version uses all available data which means that in a single country there can be data from multiple survey waves, i.e. repeated cross-sectional data. The mapping algorithm is only spatial, not spatio-temporal, which means the predictions are not for any specified point in time and the all measurements are weighted equally regardless of when they are made.
+
+The bounding polygon for the Kriging process is created by merging the borders of all adjacent countries (in case of islands and or other disconnected areas, the country border is used directly). When preprocessing of the data we use the «R« packages «sp« and «raster«. The Kriging is done by \href{https://cran.r-project.org/web/packages/autoFRK/index.html}{«autoFRK«}, a package that implements a special version of Kriging that can work with massive amounts of datapoints \cite{Tzeng03042018}. The analyses are reproducible from scratch by the scripts we provide in the source code for this document.
+
+\subsection{Prepare input data for Kriging}
+
+The respondents live in disconnected parts of the world, and we can assume that disconnected areas can be processed separately, ie that we do not lose valueable information by running separate analyses for Africa and South east Asia, or even by running a separate analysis on islands as Madagascar and the Philippines, or even other disconnected areas. Some countries are disconnected because there is no data for their neighbouring countries, e.g. Egypt and Cambodia.
+
+Construct a set of tables, one for each disconnected area, with the following structure: coordinates, dependent variable (either the proportion exposed to IPV, or the proportion women who thinks IPV can be justified).
+
+\begin{table}[ht]
+\centering
+\begin{tabular}{rrrr}
+  \toprule
+ & lon & lat & viol01\_cluster \\ 
+  \midrule
+1 & 29.570 & -2.733 & 0.000 \\ 
+  2 & 25.835 & -17.862 & 0.231 \\ 
+  3 & 9.691 & 12.436 & 0.032 \\ 
+  4 & 79.477 & 25.206 & 0.111 \\ 
+  5 & 86.884 & 25.758 & 0.714 \\ 
+  6 & 79.437 & 17.020 & 0.333 \\ 
+   \bottomrule
+\end{tabular}
+\end{table}
+
+The coordinates will be converted from longitude, latitude (which uses degree as units) into the webmercator reference system (which uses meter as the unit) before kriging is applied.
+
+\subsection{Define the "islands"}
+\label{sec:define-islands}
+
+It turns out that due to data availablility Africa is divided into two disconnected large areas: west and (south-)east.
+
+The disconnected parts in Africa.
+
+<<define.islands.africa, tidy = FALSE>>=
+Madagascar <- "Madagascar"
+Egypt <- "Egypt"
+West <- c("Benin", "Burkina Faso", "Cameroon", "Chad", "Côte d'Ivoire", "Gabon",
+          "Ghana", "Guinea", "Liberia", "Mali", "Mauritania", "Nigeria",
+          "Senegal", "Gambia", "Sierra Leone", "Togo")
+South.and.east <- c("Zambia", "Zimbabwe", "South Africa",
+     "United Republic of Tanzania", "Uganda", "Rwanda", "Namibia", "Mozambique",
+     "Malawi", "Lesotho", "Kenya", "Ethiopia",
+     "Democratic Republic of the Congo", "Burundi", "Angola")
+@
+
+The disconnected parts in South Asia.
+
+<<define.islands.asia>>=
+india.et.al <- c("Myanmar", "India", "Bangladesh", "Nepal", "Pakistan", "Afghanistan")
+philippines <- "Philippines"
+timor <- "Timor-Leste"
+cambodia <- "Cambodia"
+@
+
+\subsection{Prepare data for each continent}
+
+The function «generate.input.data.for.kriging.f()« defined below creates a set of tables, and the relevant country borders, for a given set of countries.
+
+\begin{compactenum}
+\item Select the relevant subset of observations for this set of countries.
+\item Discard observations with either missing coordinates or missing data.
+\item Take the mean of the dependent variable for each unique coordinate pair.
+\item Create a geographical object based in the coordinates.
+\item Project the geographical object to the webmercator coordinate system.
+\item Export the projected coordinates and the observations to an ordinary table.
+\item Import the borders for each country in the set.
+\item If there are multiple countries in the set, merge the country borders to a single polygon.
+\item Project the polygon from lon/lat to webmercator.
+\item Create a grid of points, separated by 10.000 meters, based on the extent of the polygon.
+\item Set all points in the grid that is outside the polygon to NA, to indicate that they are not relevant.
+\item Save the coordinates of all points that are not NA to an ordinary table.
+\end{compactenum}
+
+This creates the two tables used for kriging (the observations), and predictions (the gridpoints) both in the correct reference system. In addition, also create the country borders that should be displayed on the maps. The country border data comes from the «R« package «rnaturalearthdata« accessed with the package «rnaturalearth«. To make the final maps less cluttered, the function accepts an argument for which country borders to ignore.
+
+<<set.gis.path>>=
+gis.map <- paste0(my.dir, "/GIS-borders/")
+@
+
+<<generate.input.data.for.kriging>>=
+generate.input.data.for.kriging.f <- function(my.set, my.var, my.clean.dt, projection = "EPSG:3857", my.cell.width = 10000, country.borders.to.ignore = NULL){
+    ## country (as string) is used to match against country.borders.to.ignore
+    my.clean.dt[, country := iso.3166$String[match(country.code.ISO.3166.alpha.3, iso.3166$numeric)], ]
+
+    ## Select the relevant data points 
+    my.dt.with.data <- my.clean.dt[ 
+        country.code.ISO.3166.alpha.3 %in% iso.3166$numeric[match(my.set, iso.3166$String)] &
+        ! is.na(lon) &
+        ! is.na(my.var), ]
+
+    if(nrow(my.dt.with.data) == 0){
+        return(NULL)
+    }
+
+    ## only save one observation per coordinate pair,
+    ## take the mean value of my.var at each unique coordinate
+    my.dt.with.data[, coordinate := paste(lon, lat, sep = "."), ]
+    my.dt <- my.dt.with.data[, list(temp = mean(get(my.var), na.rm = TRUE), lon=unique(lon), lat = unique(lat)), by = coordinate]
+    my.dt[, coordinate := NULL, ]
+
+    ## Create simple feature collection of points
+    foo <- sf::st_as_sf(my.dt, coords = c("lon", "lat"), crs = 4326)
+
+    ## Project from long/lat to webmercator
+    points.with.data <- sf::st_transform(foo, projection)
+
+    ## First column is the observed value, second column is `geometry`.
+    ## use sf::st_coordinates(points.with.data) to get coordinates in a way
+    ## that autoFRK can use.
+    ## autoFRK(Data = points.with.data[[1]], loc = sf::st_coordinates(points.with.data))
+
+    ## import the borders for these countries
+    world <- rnaturalearth::ne_countries(scale = 50, returnclass = "sv")
+    borders <- world[as.numeric(world$iso_n3_eh) %in% unique(my.dt.with.data$country.code.ISO.3166.alpha.3), ]
+    projected.countries <- terra::project(borders, "EPSG:3857")
+
+    ## Create grid points with terra
+    template <- terra::rast(projected.countries, resolution = c(my.cell.width, my.cell.width))
+    terra::values(template) <- rep(1, terra::ncell(template))
+    r <- terra::mask(template, projected.countries)    
+    # Get indices of the cells contained in the polygon
+    valid.cells <- which(!is.na(terra::values(r)))
+    ## Extract midpoints of all those cells
+    my.grid.points <- as.data.frame(terra::xyFromCell(r, valid.cells))
+
+    ## If requested, create a subset of borders to actually plot (use the inverse)
+    all.countries <- unique(my.dt.with.data$country)
+    if(is.null(country.borders.to.ignore) == FALSE & length(which(country.borders.to.ignore %in% all.countries)) > 0){
+        names.of.countries.to.include <- all.countries[which(all.countries %in% country.borders.to.ignore == FALSE)]
+        if(length(names.of.countries.to.include) > 0){
+            borders.to.plot <- world[world$admin %in% names.of.countries.to.include, ]
+        } else {
+            borders.to.plot <- NULL
+        }
+    } else {
+        borders.to.plot <- borders
+    }
+    
+    ## The first two elements are for kriging, the last two elements are useful for
+    ## plotting the end results: [3] has all borders, useful to crop the end raster
+    ## [4] has the borders to include in the plot.
+    
+    ## Note that the last obect is a SpatVector object, so make sure terra is loaded
+    ## And terra version 1.7.0 is required for wrap()
+
+    ## Allow NULL values
+    if(is.null(borders) == FALSE){
+        borders <- terra::wrap(borders)
+    }
+    if(is.null(borders.to.plot) == FALSE){
+        borders.to.plot <- terra::wrap(borders.to.plot)
+    }
+    return(list(points.with.data, my.grid.points, borders, borders.to.plot))
+}
+
+@
+
+Configure the system for parallel computing.
+
+<<start.future, cache = FALSE>>=
+library(doFuture); library(globallivingconditions); library(sf)
+options(future.gc=TRUE, mc.cores = parallelly::availableCores(method = c("Slurm", "system")))
+future::plan(future::multicore)
+doFuture::registerDoFuture()
+
+@
+
+A function that process all adjacent countries simultaneously, and aligns and merges the results to a single raster. The slighly higher resolution used here is to avoid artifacts (undefined vertical stripes) when the different raster are aligned to a single origin.
+
+The «regularisation.factor« argument provides a way for the user to choose how strong regularisation to use. The default in «autoFRK()« is to use $ 10 \sqrt{n} $. A higher value gives the kriging algorithm more freedom to care for local deviances, resulting in a more detailed map, while a lower value forces the kriging to make a smoother surface, or, in other words, to keep only the most important trends in the data. Too high values risk overfitting, while too low values gives a too simplified result. Given that the number of respondents per site typically is rather low, we have choosen to use a stronger regularisation than the default of «autoFRK()« - we use $ \sqrt{n} $ as «maxK«, the maximum number of basis functions considered.
+
+
+<<kriging.full.pipeline>>=
+kriging.full.pipeline.f <- function(prepared.data, resolution = my.resolution * 1.1, regularisation.factor = 10){
+    ## Africa or Asia, each with its own set of islands
+    library(data.table); library(sf)
+
+    my.raster <- lapply(1:length(prepared.data), function(j) {
+        my.fit <- autoFRK::autoFRK(Data = prepared.data[[j]][[1]][[1]], loc = sf::st_coordinates(prepared.data[[j]][[1]]), 
+                                                maxK = round(regularisation.factor * sqrt(length(prepared.data[[j]][[1]][[1]]))))
+        my.predictions <- predict(my.fit, newloc = prepared.data[[j]][[2]])
+        kriging.results <- my.predictions$pred.value[, 1]
+
+        ## Convert new locations to an sf object points collection
+        my.sf <- sf::st_as_sf(
+            data.frame(prepared.data[[j]][[2]], viol01_cluster = kriging.results), 
+            coords = c("x", "y"), crs = 3857)
+    
+        ## Create an empty raster with terra
+        r <- rast(ext(my.sf), resolution = resolution, crs = "EPSG:3857")
+    
+        ## Rasterize
+        raster.mean <- rasterize(my.sf, r, field = "viol01_cluster", fun = mean)
+    })    
+
+    ## Compute the union of extents
+    common.extent <- Reduce(terra::union, lapply(my.raster, terra::ext))
+
+    # Create a template raster with the common extent and the resolution of the first raster
+    template <- terra::rast(ext=common.extent, res=terra::res(my.raster[[1]]), crs=terra::crs(my.raster[[1]]))
+    
+    ## Extend all rasters to this template
+    aligned.rasters <- lapply(my.raster, function(r) terra::resample(r, template, method="bilinear"))
+
+    ## Stitch the parts together
+    complete.raster <- do.call(terra::mosaic, aligned.rasters)
+
+    ## Transform back to longitude latitude
+    raster.long.lat <- terra::project(complete.raster, "EPSG:4326")
+
+    ## borders.to.plot is more difficult, since it can contain empty elements
+    valid.vectors <- sapply(1:length(prepared.data), function(j) {
+        if(is.null(prepared.data[[j]][[4]])){
+            return(NULL)
+        }
+        sv <- terra::unwrap(prepared.data[[j]][[4]])
+        if (geomtype(sv) == "polygons") return(sv) else return(NULL)
+    }, simplify = FALSE)
+
+    ## Remove NULLs
+    valid.vectors <- Filter(Negate(is.null), valid.vectors)
+
+    ## Ensure there's something left to union
+    if (length(valid.vectors) > 0) {
+        borders.to.plot <- Reduce(terra::union, valid.vectors)
+    } else {
+        borders.to.plot <- NULL  # Or handle the empty case as needed
+    }
+    return(list(raster.long.lat, borders.to.plot))
+}
+
+@
+
+Create data suitable for kriging exposure to IPV in Asia.
+
+<<exposure-asia-prepare>>=
+my.resolution = 10000
+
+remove.empty.elements.f <- function(lst) {
+  lst[!sapply(lst, function(x) length(x) == 0)]
+}
+
+asia.exposure.input.data <- remove.empty.elements.f(foreach::foreach(set = list(india.et.al, philippines, cambodia),
+        .options.future = list(scheduling = TRUE,
+                               seed = TRUE,
+                               packages = c("data.table", "globallivingconditions"))
+        ) %dofuture% { print(paste(set)); generate.input.data.for.kriging.f(my.set = set, my.var = "viol01_cluster", my.clean.dt = viol01_cluster, my.cell.width = my.resolution, country.borders.to.ignore = c("India", "Cambodia", "Philippines")) })
+@
+
+Calculate IPV exposure in Asia. Serialise to make the results cacheable. (Raster objects consist of pointers to objects stored on disk, these pointers are locally defined and become invalid when the function returns. To avoid this, the function «wrap()« makes a full copy of the raster object to RAM. When these objects are later used, «unwrap()« has to be applied to make them ordinary raster objects again. Together «wrap()« and «unwrap()« are essential whenever a function is returning raster objects or when working with «knitr« which caches the results of chunks to avoid having to redo the computations every time the source is compiled to a \LaTeX document).
+
+<<asia-IPV-exposure-calc, dependson="kriging.full.pipeline">>=
+results <- kriging.full.pipeline.f(asia.exposure.input.data, regularisation.factor = 1)
+if(is.null(results[[1]]) == FALSE){
+    serializable.raster <- terra::wrap(results[[1]])
+} else {
+    serializable.raster <- NULL
+}
+if(is.null(results[[2]]) == FALSE){
+    serializable.border <- terra::wrap(results[[2]])
+} else {
+    serializable.border <- NULL
+}
+@
+
+Calculate sample size for Exposure in Asia
+
+<<n.stats, tidy = FALSE>>=
+countries.codes.asia <- c("Andaman And Nicobar Islands",
+   "Andhra Pradesh", "Arunachal Pradesh", "Assam",
+   "Bihar", "Chandigarh", "Chhattisgarh", "Goa", "Gujarat",
+   "Haryana", "Himachal Pradesh", "Jammu And Kashmir",
+   "Jharkhand", "Karnataka", "Kerala", "Lakshadweep",
+   "Madhya Pradesh", "Maharashtra", "Manipur", "Meghalaya",
+   "Mizoram", "Nagaland", "New Delhi", "Odisha", "Puducherry",
+   "Punjab", "Rajasthan", "Sikkim", "Tamil Nadu",
+   "Telangana", "Tripura", "Uttar Pradesh", "Uttarakhand",
+   "West Bengal", "KHM", "PAK", "MMR", "NPL", "PHL", "BGD")
+n.persons.exposure.asia <- my.dt.clean[country %in%
+  countries.codes.asia, length(which(is.na(viol01_wife)
+  == FALSE)), ]
+n.local.areas.exposure.asia <- my.dt.clean[country %in%
+  countries.codes.asia &
+  is.na(viol01_wife) == FALSE, length(unique(cluster1)), ]
+n.surveys.exposure.asia <- length(unique(sapply(strsplit(as.character(
+    my.dt.clean$cluster1), ".", fixed = TRUE), function(x) {
+        paste(x[c(1, 3)], collapse = ".") })))
+
+@ 
+
+Plot exposure to IPV in Asia.
+
+<<asia-IPV-exposure, fig.cap = paste0("Estimated proportion of women in the local area who have been exposed to violence by their current husband, Asia. Pakistan, India, Nepal, Myanmar, Cambodia and Philippines. Country borders in darkgreen, and countries without data in gray. Number of women = ", n.persons.exposure.asia, ", number of local areas = ", n.local.areas.exposure.asia, ". Kriging performed on data compiled from ", n.surveys.exposure.asia, " surveys funded by the DHS."), dependson = "asia-IPV-exposure-calc", fig.width = 9, fig.height = 5, fig.align = "center", tidy = FALSE>>=
+my.palette.f <- grDevices::colorRampPalette(c("blue", "white", "red"))
+my.raster <- terra::clamp(unwrap(serializable.raster),
+                          lower=0, upper=1, values=TRUE)
+terra::plot(my.raster, col = my.palette.f(101), range = c(0, 1),
+            plg = list(at = seq(from = 0, to = 1, by = 0.1)),
+            axes = TRUE, ylim = c(4, 38), xlim = c(60, 127))
+## terra::contour(my.raster, add = TRUE, levels = c(0.25, 0.5, 0.75))
+if(is.null(serializable.border) == FALSE){
+    my.borders <- unwrap(serializable.border)
+    plot(my.borders, add = TRUE, col = NA, border = "darkgreen", lwd = 2)
+}
+
+## add adjacent countries with no data in gray
+## world$admin has names, but not proper names according to iso.3166
+## eg "Laos" instead of "Lao People's Democratic Republic"
+## Therefore, use the numeric code in world$iso_n3_eh instead
+add.gray.countries <- c("Bangladesh", "Viet Nam",
+                        "Lao People's Democratic Republic", "Thailand")
+world <- rnaturalearth::ne_countries(scale = 50, returnclass = "sv")
+gray.countries <- world[as.numeric(world$iso_n3_eh) %in%
+        iso.3166$numeric[match(add.gray.countries, iso.3166$String)], ]
+plot(gray.countries, col = "gray80", add = TRUE, border = "darkgreen", lwd = 0.5)
+
+@
+
+Repeat with attitudes to IPV.
+
+<<n.stats.attitudes.asia>>=
+n.persons.attitudes.asia <- my.dt.clean[country %in% countries.codes.asia, length(which(is.na(beat01_couple) == FALSE)), ]
+n.local.areas.attitudes.asia <- my.dt.clean[country %in% countries.codes.asia &
+  is.na(beat01_couple) == FALSE, length(unique(cluster1)), ]
+n.surveys.attitudes.asia <- length(unique(sapply(strsplit(as.character(my.dt.clean$cluster1), ".", fixed = TRUE), function(x) { paste(x[c(1, 3)], collapse = ".") })))
+
+@ 
+
+<<asia-IPV-attitudes-calc>>=
+asia.attitudes.input.data <- remove.empty.elements.f(foreach::foreach(set = list(india.et.al, philippines, cambodia),
+        .options.future = list(scheduling = TRUE,
+                               seed = TRUE,
+                               packages = c("data.table", "globallivingconditions"))
+        ) %dofuture% generate.input.data.for.kriging.f(my.set = set, my.var = "justifyIPV_cluster", my.clean.dt = justifyIPV_cluster, my.cell.width = my.resolution, country.borders.to.ignore = c("India", "Cambodia", "Philippines")))
+results <- kriging.full.pipeline.f(asia.attitudes.input.data, regularisation.factor = 1)
+
+if(is.null(results[[1]]) == FALSE){
+    serializable.raster <- terra::wrap(results[[1]])
+} else {
+    serializable.raster <- NULL
+}
+if(is.null(results[[2]]) == FALSE){
+    serializable.border <- terra::wrap(results[[2]])
+} else {
+    serializable.border <- NULL
+}
+
+@
+
+<<asia-IPV-attitudes-plot, fig.cap = paste0("Estimated proportion of women in the local area who think IPV can be justified, Asia. Pakistan, India, Nepal, Myanmar, Cambodia and Philippines. Country borders in darkgreen, and countries without data in gray. Number of women = ", n.persons.attitudes.asia, ", number of local areas = ", n.local.areas.attitudes.asia, ". Kriging performed on data compiled from ", n.surveys.attitudes.asia, " surveys funded by the DHS."), fig.width = 9, fig.height = 5>>=
+my.raster <- terra::clamp(terra::unwrap(serializable.raster), lower=0, upper=1, values=TRUE)
+terra::plot(my.raster, col = my.palette.f(101), range = c(0, 1), plg = list(at = seq(from = 0, to = 1, by = 0.1)), axes = TRUE, ylim = c(4, 38), xlim = c(60, 127))
+## terra::contour(my.raster, add = TRUE, levels = c(0.25, 0.5, 0.75))
+if(is.null(serializable.border) == FALSE){
+    my.borders <- unwrap(serializable.border)
+    plot(my.borders, add = TRUE, col = NA, border = "darkgreen", lwd = 2)
+}
+add.gray.countries <- c("Bangladesh", "Viet Nam", "Lao People's Democratic Republic", "Thailand")
+world <- rnaturalearth::ne_countries(scale = 50, returnclass = "sv")
+gray.countries <- world[as.numeric(world$iso_n3_eh) %in% iso.3166$numeric[match(add.gray.countries, iso.3166$String)], ]
+plot(gray.countries, col = "gray80", add = TRUE, border = "darkgreen", lwd = 0.5)
+
+@ 
+
+Repeat with African countries.
+
+<<africa-IPV-attitudes-calc>>=
+africa.attitudes.input.data <- remove.empty.elements.f(foreach::foreach(set = list(Madagascar, Egypt, South.and.east, West),
+        .options.future = list(scheduling = TRUE,
+                               seed = TRUE,
+                               packages = c("data.table", "globallivingconditions"))
+        ) %dofuture% generate.input.data.for.kriging.f(my.set = set, my.var = "justifyIPV_cluster", my.clean.dt = justifyIPV_cluster, my.cell.width = my.resolution, country.borders.to.ignore = c("Egypt", "Madagascar")))
+results <- kriging.full.pipeline.f(africa.attitudes.input.data, regularisation.factor = 5)
+
+if(is.null(results[[1]]) == FALSE){
+    serializable.raster <- terra::wrap(results[[1]])
+} else {
+    serializable.raster <- NULL
+}
+if(is.null(results[[2]]) == FALSE){
+    serializable.border <- terra::wrap(results[[2]])
+} else {
+    serializable.border <- NULL
+}
+
+@
+
+Calculate sample sizes for the African continent.
+
+<<sample.size.africa, tidy = FALSE>>=
+countries.africa <- c(Madagascar, Egypt, West, South.and.east)
+n.persons.attitudes.africa <- my.dt.clean[country %in% countries.africa &
+                                        is.na(lon) == FALSE,
+                               length(which(is.na(beat01_couple) == FALSE)), ]
+n.local.areas.attitudes.africa <- my.dt.clean[country %in% countries.africa &
+ is.na(lon) == FALSE & is.na(beat01_couple) == FALSE, length(unique(cluster1)), ]
+n.surveys.attitudes.africa <- length(unique(sapply(strsplit(as.character(
+    my.dt.clean[country %in% countries.africa & is.na(lon) == FALSE &
+                is.na(beat01_couple) == FALSE, cluster1]),
+    ".", fixed = TRUE), function(x) { paste(x[c(1, 3)], collapse = ".") })))
+@ 
+
+<<africa-IPV-attitudes-plot, fig.cap = paste0("Estimated proportion of women in the local area who think IPV can be justified, Africa. Country borders in darkgreen, and countries without data in gray. Number of women = ", n.persons.attitudes.africa, ", number of local areas = ", n.local.areas.attitudes.africa, ". Kriging performed on data compiled from ", n.surveys.attitudes.africa, " surveys funded by the DHS."), fig.width = 5, fig.height = 5, fig.align = "center">>=
+my.raster <- terra::clamp(terra::unwrap(serializable.raster), lower=0, upper=1, values=TRUE)
+
+## Load and unserialize the raster vector for the whole of Africa
+load(paste0(africa.map.path, "africa-lowres.RData"))
+africa <- terra::unwrap(africa)
+
+terra::plot(my.raster, col = my.palette.f(101), range = c(0, 1), plg = list(at = seq(from = 0, to = 1, by = 0.1)), axes = TRUE,
+            xlim = terra::ext(africa)[c(1, 2)], ylim = terra::ext(africa)[c(3, 4)])
+
+## Fill with gray
+terra::plot(africa, col = "gray80", add = TRUE)
+
+## Overwrite with proper data where available
+terra::plot(my.raster, col = my.palette.f(101), range = c(0, 1), add = TRUE)
+
+## Add the relevant borders
+if(is.null(serializable.border) == FALSE){
+    my.borders <- terra::unwrap(serializable.border)
+    terra::plot(my.borders, add = TRUE, col = NA, border = "darkgreen", lwd = 2)
+}
+
+@
+
+Calculate sample sizes for exposure to IPV in Africa.
+
+<<sample.size.exposure.africa, tidy = FALSE>>=
+n.persons.exposure.africa <- my.dt.clean[country %in% countries.africa &
+                                        is.na(lon) == FALSE,
+                               length(which(is.na(viol01_wife) == FALSE)), ]
+n.local.areas.exposure.africa <- my.dt.clean[country %in% countries.africa &
+                                             is.na(lon) == FALSE &
+                                             is.na(viol01_wife) == FALSE,
+                                             length(unique(cluster1)), ]
+n.surveys.exposure.africa <- length(unique(sapply(strsplit(as.character(
+    my.dt.clean[country %in% countries.africa &
+                is.na(viol01_wife) == FALSE &
+                is.na(lon) == FALSE, cluster1]),
+    ".", fixed = TRUE), function(x) { paste(x[c(1, 3)], collapse = ".") })))
+@ 
+
+Perform kriging on exposure to IPV in Africa.
+
+<<africa-IPV-exposure-calc>>=
+africa.exposure.input.data <- remove.empty.elements.f(foreach::foreach(set = list(Madagascar, Egypt, South.and.east, West),
+        .options.future = list(scheduling = TRUE,
+                               seed = TRUE,
+                               packages = c("data.table", "globallivingconditions"))
+        ) %dofuture% generate.input.data.for.kriging.f(my.set = set, my.var = "viol01_cluster", my.clean.dt = viol01_cluster, my.cell.width = my.resolution, country.borders.to.ignore = c("Egypt", "Madagascar")))
+results <- kriging.full.pipeline.f(africa.exposure.input.data, regularisation.factor = 5)
+
+if(is.null(results[[1]]) == FALSE){
+    serializable.raster <- terra::wrap(results[[1]])
+} else {
+    serializable.raster <- NULL
+}
+if(is.null(results[[2]]) == FALSE){
+    serializable.border <- terra::wrap(results[[2]])
+} else {
+    serializable.border <- NULL
+}
+
+@
+
+Plot exposure to IPV in Africa.
+
+<<africa-IPV-exposure-plot, fig.cap = paste0("Proportion women in the local area who have exposed to violence by their current husband, Africa. Country borders in darkgreen, and countries without data in gray. Number of women = ", n.persons.exposure.africa, ", number of local areas = ", n.local.areas.exposure.africa, ". Kriging performed on data compiled from ", n.surveys.exposure.africa, " surveys funded by the DHS."), fig.width = 5, fig.height = 5, fig.align = "center">>=
+my.raster <- terra::clamp(terra::unwrap(serializable.raster), lower=0, upper=1, values=TRUE)
+
+## Load and unserialize the raster vector for the whole of Africa
+load(paste0(africa.map.path, "africa-lowres.RData"))
+africa <- terra::unwrap(africa)
+
+terra::plot(my.raster, col = my.palette.f(101), range = c(0, 1), plg = list(at = seq(from = 0, to = 1, by = 0.1)), axes = TRUE,
+            xlim = terra::ext(africa)[c(1, 2)], ylim = terra::ext(africa)[c(3, 4)])
+
+## Fill with gray
+terra::plot(africa, col = "gray80", add = TRUE)
+
+## Overwrite with proper data where available
+terra::plot(my.raster, col = my.palette.f(101), range = c(0, 1), add = TRUE)
+
+## Add the relevant borders
+if(is.null(serializable.border) == FALSE){
+    my.borders <- unwrap(serializable.border)
+    plot(my.borders, add = TRUE, col = NA, border = "darkgreen", lwd = 2)
+}
+
+@ 
 
 \bibliographystyle{apacite}
 \bibliography{references}
