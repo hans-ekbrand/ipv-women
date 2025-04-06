@@ -1808,6 +1808,12 @@ if(is.null(serializable.border) == FALSE){
     plot(my.borders, add = TRUE, col = NA, border = "darkgreen", lwd = 2)
 }
 
+@
+
+Make a table over the countries
+
+<<splines-coverage, results="asis">>=
+print(xtable(table(my.dt.clean$country)), booktabs = TRUE)
 @ 
 
 \bibliographystyle{apacite}
