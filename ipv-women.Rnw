@@ -133,7 +133,10 @@ my.dt <- download.and.harmonise(
     dhs.password=credentials$dhs.password,
     vars.to.keep = NULL,
     file.types.to.download = c("PR", "GE", "IR", "MR", "KR"),
-    waves = list("Afghanistan" = "71", "Angola" = "71", "Armenia" = "72", "Benin" = "71", "Burkina Faso" = "81", 
+    waves = list("Bangladesh" = "81", "Congo" = "61", "Congo Democratic Republic" = "61", "Philippines" = "82",
+                 "Peru" = "6I", "Yemen" = "61", "Albania" = "71", "Namibia" = "61", "Lesotho" = "81",
+                 "Indonesia" = "71", "Kyrgyz Republic" = "61", "Senegal" = "8B",
+        "Afghanistan" = "71", "Angola" = "71", "Armenia" = "72", "Benin" = "71", "Burkina Faso" = "81", 
                  "Cambodia" = c("73", "82"), "Cameroon" = "71", "Colombia" = "72",
                  "Cote d'Ivoire" = "81", "Dominican Republic" = "61", "Ethiopia" = "71", "Haiti" = "71",
                  "Gabon" = "71", "Gambia" = "81", "Ghana" = "8C", "Guinea" = "71", "India" = c("74", "7E"),
@@ -145,7 +148,7 @@ my.dt <- download.and.harmonise(
     variable.packages = c("wealth", "empowerment", "matching"),
     max.file.size.for.parallelisation = max.size,
     directory = my.dir,
-    check.dhs.for.more.data = FALSE
+    check.dhs.for.more.data = TRUE
 )
 
 ## Domestic Violence
