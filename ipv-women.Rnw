@@ -64,7 +64,7 @@ To compile this document, including rendering the graphs, a working «R« and «
 
 <<install.packages, cache = FALSE>>=
 ## Install necessary R packages
-required.packages <- c("lme4", "data.table", "xtable", "effects", "parallel", "future", "doFuture", "foreach", "sf", "terra", "parallelly", "cooltools", "raster", "formatR", "lwgeom", "autoFRK", "rnaturalearthdata", "rnaturalearth", "spatstat.geom", "spatstat.random", "reticulate", "devtools", "car")
+required.packages <- c("lme4", "data.table", "xtable", "effects", "parallel", "future", "doFuture", "foreach", "sf", "terra", "parallelly", "cooltools", "raster", "formatR", "lwgeom", "autoFRK", "rnaturalearthdata", "rnaturalearth", "spatstat.geom", "spatstat.random", "reticulate", "devtools")
 for(package in required.packages){
     if(!require(package, character.only=TRUE)){
         install.packages(package, character.only=TRUE)
@@ -302,9 +302,9 @@ my.dt[ , ln_numb_of_children := log(0.5 + apply(cbind(empowerment.V202, empowerm
 my.dt[ , lnage_wife := log(age), ]
 
 ## Construct the literacy of the couple
-my.dt[ , man.is.illiterate := ifelse(car::recode(empowerment.MV155, recodes = "c('Cannot read at all', 'Blind/visually impaired', 'Vision problems') = TRUE; c('Able to read only parts of sentence', 'Able to read whole sentence') = FALSE; c('No card with required language', 'No card with required language/visually impaired') = NA") == "TRUE", TRUE, FALSE), ]
+my.dt[ , man.is.illiterate := ifelse(globallivingconditions::recode(empowerment.MV155, recodes = "c('Cannot read at all', 'Blind/visually impaired', 'Vision problems') = TRUE; c('Able to read only parts of sentence', 'Able to read whole sentence') = FALSE; c('No card with required language', 'No card with required language/visually impaired') = NA") == "TRUE", TRUE, FALSE), ]
 
-my.dt[, wife.is.illiterate := ifelse(car::recode(empowerment.V155, recodes = "c('Able to read only parts of sentence', 'Able to read whole sentence', 'Reads easily', 'Reads with difficulty') = 0; c('Cannot read at all', 'Blind/visually impaired', 'Cannot read at all', 'Vision problems', 'Blind / visually impaired', 'Cannot see/Blind', 'Blind, cannot see well', 'No card with required language/Visually impaired') = 1; 'No card with required language' = NA") == 1, TRUE, FALSE), ]
+my.dt[, wife.is.illiterate := ifelse(globallivingconditions::recode(empowerment.V155, recodes = "c('Able to read only parts of sentence', 'Able to read whole sentence', 'Reads easily', 'Reads with difficulty') = 0; c('Cannot read at all', 'Blind/visually impaired', 'Cannot read at all', 'Vision problems', 'Blind / visually impaired', 'Cannot see/Blind', 'Blind, cannot see well', 'No card with required language/Visually impaired') = 1; 'No card with required language' = NA") == 1, TRUE, FALSE), ]
 
 my.dt[, husband.is.illiterate := man.is.illiterate[my.map], ]
 
@@ -328,7 +328,7 @@ my.dt[, wife.is.illiterate := NULL, ]
 ## provided by the GDL are coarser so precision is not lost.
 
 ## Step 1, match RegionID from DHS with names of GADM region level 1
-Afghanistan.Region.ID.from.dhs <- car::recode(my.dt[country.code.ISO.3166.alpha.3 == 4, substring(RegionID, 4), ], recodes = "'Helmand' = 'Hilmand'; 'Herat' = 'Hirat'; 'Kunarha' = 'Kunar'; 'Nooristan' = 'Nuristan'; 'Panjsher' = 'Panjshir'; 'Sar-e-pul' = 'SariPul'; 'Urozgan' = 'Uruzgan'")
+Afghanistan.Region.ID.from.dhs <- globallivingconditions::recode(my.dt[country.code.ISO.3166.alpha.3 == 4, substring(RegionID, 4), ], recodes = "'Helmand' = 'Hilmand'; 'Herat' = 'Hirat'; 'Kunarha' = 'Kunar'; 'Nooristan' = 'Nuristan'; 'Panjsher' = 'Panjshir'; 'Sar-e-pul' = 'SariPul'; 'Urozgan' = 'Uruzgan'")
 
 ## Update the RegionID in my.dt for these cases.
 my.dt[country.code.ISO.3166.alpha.3 == 4, RegionID := paste0("AF.", Afghanistan.Region.ID.from.dhs), ]
@@ -439,8 +439,10 @@ gdi.long[, year.of.interview := as.numeric(as.character(year.of.interview)), ]
 ## ## Use the GDL code that corresponds to the "total" version for the country.
 ## my.temp.set <- unique(my.dt[, list(ClusterID, year.of.interview, GDLCODE = paste0(globallivingconditions::iso.3166$String.code[match(country.code.ISO.3166.alpha.3, globallivingconditions::iso.3166$numeric)], "t")), ])
 
-## No, use coordinate data if it exists.
-my.temp.set <- unique(my.dt[which(is.na(lon) == FALSE), list(ClusterID, lon.lat.identifier = paste(lon, lat, sep = "."), year.of.interview), ])
+## For India (code == 356), use Sub-National estimates of GNI/GDI
+my.temp.set <- unique(my.dt[which(is.na(lon) == FALSE)
+                            & country.code.ISO.3166.alpha.3 == 356,
+       list(ClusterID, lon.lat.identifier = paste(lon, lat, sep = "."), year.of.interview), ])
 
 ## add GDLCODE to my.temp.set, using unique.pts.clean
 setkey(my.temp.set, lon.lat.identifier)
@@ -449,8 +451,8 @@ my.temp.set.2 <- merge(my.temp.set, unique.pts.clean)
 ## The lon.lat.identifier is no longer useful
 my.temp.set.2[, lon.lat.identifier := NULL, ]
 
-## Now, add those clusters for which we do not have any lon, lat
-my.no.lon.lat.set <- unique(my.dt[which(is.na(lon) & ClusterID %in% my.temp.set.2$ClusterID == FALSE), list(ClusterID, year.of.interview, GDLCODE = paste0(globallivingconditions::iso.3166$String.code[match(country.code.ISO.3166.alpha.3, globallivingconditions::iso.3166$numeric)], "t")), ])
+## Now, add those clusters for which we do not already have a GDLCODE
+my.no.lon.lat.set <- unique(my.dt[which(ClusterID %in% my.temp.set.2$ClusterID == FALSE), list(ClusterID, year.of.interview, GDLCODE = paste0(globallivingconditions::iso.3166$String.code[match(country.code.ISO.3166.alpha.3, globallivingconditions::iso.3166$numeric)], "t")), ])
 
 ## Add the set of cases matched on lon, lat and the set of cases based on total for the country.
 my.temp.set.3a <- rbind(my.no.lon.lat.set, my.temp.set.2)
@@ -530,6 +532,9 @@ my.dt.clean <- my.dt.temp[which(is.na(couple_attitudes) == FALSE &
                                 is.na(gdi) == FALSE
                                 ),                                
                           list(viol01_wife, couple_attitudes, Education, edudeviation, decide_purchases, decide_health, gdi, gni, viol01_cluster, justifyIPV_cluster, iwi2, country, cluster1, ln_numb_of_children, lnage_wife, literate_couple), ]
+
+## Logg number of cases lost here
+globallivingconditions::my.log.f(paste("Number of cases lost due to missing data in my.dt.temp:", nrow(my.dt.temp) - nrow(my.dt.clean)))
 
 ## z-standardize some numeric variables
 for(var in c("gni", "iwi2", "gdi")){
@@ -1177,7 +1182,7 @@ my.recodes <- "'True' = 1; 'False' = 0"
 attitudes <- c("('couple_attitudes', 'Both justify IPV')", "('couple_attitudes', 'Husband justifies IPV')", "('couple_attitudes', 'Wife justifies IPV')")
 
 couple_attitudes <- cbind(sapply(c(attitudes), function(x) {
-    car::recode(ipv.mm[[x]], recodes = my.recodes)                            
+    globallivingconditions::recode(ipv.mm[[x]], recodes = my.recodes)                            
 }, simplify = TRUE))
 
 ## dynamically adjust to any number of splines
@@ -1186,7 +1191,7 @@ splines.iterator <- 0:2
 my.spline.names <- paste0("('spline', ", splines.iterator, ")")
 interaction_terms <- as.data.frame(sapply(c(attitudes), function(attitude) {
     sapply(my.spline.names, function(spline){
-        return(car::recode(ipv.mm[[attitude]], recodes = my.recodes) *
+        return(globallivingconditions::recode(ipv.mm[[attitude]], recodes = my.recodes) *
             ipv.mm[[spline]])
     }, simplify = FALSE)
 }, simplify = FALSE), check.names = FALSE)
@@ -1199,7 +1204,7 @@ names(interaction_terms) <- gsub("couple_attitudes", "interaction_terms", names(
 names(interaction_terms) <- gsub(").('spline'", "", names(interaction_terms), fixed = TRUE)
 
 education <- cbind(sapply(c("('Education', 'Complete primary')", "('Education', 'Complete secondary')", "('Education', 'Higher')", "('Education', 'Incomplete primary')", "('Education', 'Incomplete secondary')"), function(educational.level){
-    car::recode(ipv.mm[[educational.level]], recodes = my.recodes)
+    globallivingconditions::recode(ipv.mm[[educational.level]], recodes = my.recodes)
 }))
 
 dummies <- cbind(sapply(c(
@@ -1208,7 +1213,7 @@ dummies <- cbind(sapply(c(
     "('edudeviation', 'Husband has higher edu.')", "('edudeviation', 'Wife has higher edu.')",
     "('literate_couple', 'Both can read')", "('literate_couple', 'Only wife can read')", "('literate_couple', 'Only husband can read')"
     ), function (dummy){
-        car::recode(ipv.mm[[dummy]], recodes = my.recodes)        
+        globallivingconditions::recode(ipv.mm[[dummy]], recodes = my.recodes)        
     }))
 
 as.is <- ipv.mm[c("iwi2", "lnage_wife", "ln_numb_of_children", "gdi", "gni", my.spline.names)]
