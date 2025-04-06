@@ -443,8 +443,8 @@ gdi.long[, year.of.interview := as.numeric(as.character(year.of.interview)), ]
 ## my.temp.set <- unique(my.dt[, list(ClusterID, year.of.interview, GDLCODE = paste0(globallivingconditions::iso.3166$String.code[match(country.code.ISO.3166.alpha.3, globallivingconditions::iso.3166$numeric)], "t")), ])
 
 ## For India (code == 356), use Sub-National estimates of GNI/GDI
-my.temp.set <- unique(my.dt[which(is.na(lon) == FALSE)
-                            & country.code.ISO.3166.alpha.3 == 356,
+my.temp.set <- unique(my.dt[which(is.na(lon) == FALSE & 
+                            country.code.ISO.3166.alpha.3 == 356),
        list(ClusterID, lon.lat.identifier = paste(lon, lat, sep = "."), year.of.interview), ])
 
 ## add GDLCODE to my.temp.set, using unique.pts.clean
