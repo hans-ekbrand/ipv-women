@@ -736,7 +736,7 @@ def rename_columns(col_name, dummy_vars):
         if col_name.startswith(var + "_"):
             level = col_name[len(var) + 1:]
             return f"('{var}', '{level}')"
-    return col_name  # Leave unchanged if it's not a dummy variable
+    return col_name
 
 df.columns = [rename_columns(col, dummy_vars) for col in df.columns]
 @
