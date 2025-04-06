@@ -1121,7 +1121,7 @@ with my_model:
 
 \subsection{Start sampling parameter values}
 
-<<splines-fit-model-12, engine = "python", results = "markup", cache = TRUE, echo = TRUE>>=
+<<splines-fit-model-12, engine = "python", cache = TRUE, echo = TRUE, eval = FALSE>>=
 import pickle
 import pymc.sampling.jax
 import arviz
