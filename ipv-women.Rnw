@@ -1813,7 +1813,7 @@ if(is.null(serializable.border) == FALSE){
 Make a table over the countries
 
 <<splines-coverage, results="asis">>=
-print(xtable(table(my.dt.clean$country)), booktabs = TRUE)
+print(xtable(table(my.dt.clean$country)), tabular.environment="longtable", floating = FALSE, booktabs = TRUE)
 @ 
 
 \bibliographystyle{apacite}
