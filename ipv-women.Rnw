@@ -1735,7 +1735,7 @@ if(is.null(serializable.border) == FALSE){
     my.borders <- unwrap(serializable.border)
     plot(my.borders, add = TRUE, col = NA, border = "darkgreen", lwd = 2)
 }
-add.gray.countries <- c("Bangladesh", "Viet Nam", "Lao People's Democratic Republic", "Thailand")
+add.gray.countries <- c("Viet Nam", "Lao People's Democratic Republic", "Thailand")
 world <- rnaturalearth::ne_countries(scale = 50, returnclass = "sv")
 gray.countries <- world[as.numeric(world$iso_n3_eh) %in% iso.3166$numeric[match(add.gray.countries, iso.3166$String)], ]
 plot(gray.countries, col = "gray80", add = TRUE, border = "darkgreen", lwd = 0.5)
