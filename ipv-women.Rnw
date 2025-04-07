@@ -1151,19 +1151,15 @@ with my_model:
 
 \subsection{Start sampling parameter values}
 
-<<splines-fit-model-12, engine = "python", cache = TRUE, echo = TRUE>>=
+<<splines-fit-model-12, engine = "python", cache = TRUE, echo = TRUE, eval = ! file.exists("ipv-women.pydata")>>=
 import pickle
 import pymc.sampling.jax
 import arviz
 
-try:
-    with my_model:
-        my_fit_pymc = pymc.sampling.jax.sample_numpyro_nuts(random_seed=1234, tune=200, draws=1000, target_accept=0.8, chains = 2, chain_method='parallel', idata_kwargs=dict(log_likelihood=False), postprocessing_backend="cpu", progressbar = False)
-except ImportError as e:
-    with my_model:
-        my_fit_pymc = pm.sample(random_seed=1234, tune=500, draws=200, target_accept=0.8, chains = 2, chain_method='parallel', cores=4, idata_kwargs=dict(log_likelihood=False), postprocessing_backend="cpu", progressbar = False)
-pickle.dump(my_fit_pymc, open('ipv-women.pydata', 'wb'))
+with my_model:
+    my_fit_pymc = pymc.sampling.jax.sample_numpyro_nuts(random_seed=1234, tune=200, draws=1000, target_accept=0.8, chains = 2, chain_method='parallel', idata_kwargs=dict(log_likelihood=False), postprocessing_backend="cpu", progressbar = False)
 
+pickle.dump(my_fit_pymc, open('ipv-women.pydata', 'wb'))
 df_results = my_fit_pymc.to_dataframe(groups = "posterior", include_index=False)
 df_results.drop(
     columns=[col for col in df_results.columns if "|" in str(col) or col in {"chain", "draw"}], 
