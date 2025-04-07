@@ -121,6 +121,32 @@ The table below show which variable encodes the answer from the man and the woma
 
 Also add GDI and HDI subnational data from the \href{Global Data Lab}{https://globaldatalab.org/shdi/table/sgdi/} (For now, use manually downloaded local CSV-files and map our GIS points to their Shapefiles, but when their package is fixed, use that instead of local files).
 
+\subsection{Reasons for exclusion - missing data overview}
+
+Data errors on the sources:
+
+\begin{itemize}
+\item There is no real data about violence in these countries: Albania, Bangladesh, Congo, Indonesia, Guinea, Peru, Mozambique.
+\item No real data about justifications in these countries: Congo, Jordan, Maldives.
+\item No real data about the attitude of the couple (ie both man and woman) in Nigeria, Colombia, Phillipines, Bangladesh, Jordan, Peru, so these are not useful in the regression.
+\end{itemize}
+
+Bangladesh, Indonesia, Guinea, Mozambique are still useful to include when estimating how common it is for women to justify IPV, while Maldives is useful in the regression. Albania, Congo and Peru are not useful (since we do not estimate justification levels outside Africa and Asia). Jordan has data about exposure and if the woman thinks IPV can be justfied, but lacks data from the husband.
+
+Bangladesh justification data from women is strange in that there are zero cases of missing data.
+
+Democratic Republic of the Congo and Namibia has zero overlap between attitudes and exposure, so not useful for regression (but for justifyIPV).
+
+%% More anomalies:
+% my.dt[, table(iso.3166$String[match(country.code.ISO.3166.alpha.3, iso.3166$numeric)], woman.thinks.IPV.can.be.justified), ]
+%                                   woman.thinks.IPV.can.be.justified
+%                                     FALSE   TRUE
+%   Congo                                 0   6681
+%   Jordan                                0   2481
+%   Maldives                              0   1765
+
+The only remaining problems with missing data is why Telangana and Tamil Nadu lose cases, what is missing there? and why Bangladesh does no turn up in the kriging even when there are 19654 cases in justifyIPV\_cluster. Indonesia (360) is not present in justifyIPV_cluster, perhaps missing coordinates? Then it could be added by the same procedure as Afghanistan via sampling based on the region names, but don't spend time on that just now.
+
 <<load.data.from.scratch>>=
 library(devtools)
 install_bitbucket(repo = "hansekbrand/iwi", upgrade = "never")
@@ -133,14 +159,14 @@ my.dt <- download.and.harmonise(
     dhs.password=credentials$dhs.password,
     vars.to.keep = NULL,
     file.types.to.download = c("PR", "GE", "IR", "MR", "KR"),
-    waves = list("Bangladesh" = "81", "Congo" = "61", "Congo Democratic Republic" = "61", "Philippines" = "82",
-                 "Peru" = "6I", "Yemen" = "61", "Albania" = "71", "Namibia" = "61", "Lesotho" = "81",
-                 "Indonesia" = "71", "Kyrgyz Republic" = "61", "Senegal" = "8B",
+    waves = list("Bangladesh" = "81", "Congo Democratic Republic" = "61", "Egypt" = "61", "Indonesia" = "71",
+                 "Kyrgyz Republic" = "61", "Lesotho" = "81", "Namibia" = "61", "Philippines" = "82",
+                 "Senegal" = "8B", "Yemen" = "61", 
         "Afghanistan" = "71", "Angola" = "71", "Armenia" = "72", "Benin" = "71", "Burkina Faso" = "81", 
                  "Cambodia" = c("73", "82"), "Cameroon" = "71", "Colombia" = "72",
                  "Cote d'Ivoire" = "81", "Dominican Republic" = "61", "Ethiopia" = "71", "Haiti" = "71",
                  "Gabon" = "71", "Gambia" = "81", "Ghana" = "8C", "Guinea" = "71", "India" = c("74", "7E"),
-                 "Jordan" = "74", "Kenya" = "72", "Liberia" = "7A", "Madagascar" = "81", "Maldives" = "71",
+                 "Kenya" = "72", "Liberia" = "7A", "Madagascar" = "81", "Maldives" = "71",
                  "Malawi" = "7A", "Mali" = "7A", "Mauritania" = "71", "Mozambique" = "62", "Myanmar" = "71",
                  "Nepal" = "7H", "Nigeria" = "7B", "Pakistan" = "71", "Papua New Guinea" = "71", "Rwanda" = "81",
                  "Sierra Leone" = "7A", "South Africa" = "71", "Tanzania" = "7B", "Togo" = "61", "Zambia" = "61",
@@ -161,10 +187,24 @@ my.dt <- my.dt[which(is.na(woman.exposed.to.IPV) == FALSE |
                      is.na(woman.thinks.IPV.can.be.justified) == FALSE |
                      is.na(man.thinks.IPV.can.be.justified) == FALSE), ]
 
+my.dt[, country := factor(globallivingconditions::iso.3166$String[match(country.code.ISO.3166.alpha.3, globallivingconditions::iso.3166$numeric)]), ]
+
+## Treat the states of India as countries.
+these <- which(my.dt$country == "India")
+## make country a character vector so that we can manipulate it and add new values
+my.dt$country <- as.character(my.dt$country)
+if(length(these) > 0){
+    my.dt$country[these] <- as.vector(sapply(as.character(my.dt$RegionID[these]), function(x) {
+        strsplit(x, ".", fixed = TRUE)[[1]][2]
+    }))
+}
+my.dt$country <- factor(my.dt$country)
+
 gc(verbose = FALSE)
-
 save(my.dt, file = "full.set.RData")
+@
 
+<<wash.data>>=
 contextuals.f <- function(var.name, my.dt){
     ## make var.name a binary variable
     my.dt$source.var <- ifelse(my.dt[[var.name]] == 1, TRUE, FALSE)
@@ -328,7 +368,8 @@ my.dt[, wife.is.illiterate := NULL, ]
 ## Afghanistan lacks coordinate data, but the region names used by DHS
 ## corresponds the 34 gadm areas at level 1, so with good enough
 ## precision we can locate each case. For Afghanistan the polygons
-## provided by the GDL are coarser so precision is not lost.
+## provided by the GDL are coarser so precision is not lost (if we
+## wanted to use them, but we use "Total" anyway).
 
 ## Step 1, match RegionID from DHS with names of GADM region level 1
 Afghanistan.Region.ID.from.dhs <- globallivingconditions::recode(my.dt[country.code.ISO.3166.alpha.3 == 4, substring(RegionID, 4), ], recodes = "'Helmand' = 'Hilmand'; 'Herat' = 'Hirat'; 'Kunarha' = 'Kunar'; 'Nooristan' = 'Nuristan'; 'Panjsher' = 'Panjshir'; 'Sar-e-pul' = 'SariPul'; 'Urozgan' = 'Uruzgan'")
@@ -498,21 +539,12 @@ colnames(my.dt.temp) <- gsub("GDI", "gdi", colnames(my.dt.temp))
 colnames(my.dt.temp) <- gsub("GNI", "gni", colnames(my.dt.temp))
 colnames(my.dt.temp) <- gsub("empowerment.V149", "Education", colnames(my.dt.temp))
 
-## Convert the country code from numeric to letters
-my.dt.temp[, country := factor(globallivingconditions::iso.3166$String.code[match(country.code.ISO.3166.alpha.3, globallivingconditions::iso.3166$numeric)]), ]
+## Remove data that appears to be artifacts when it comes to IVP
+## rather than real data, but has relevant data for justification of
+## IPV. Most of these would be automatically discarded, but some
+## (Mozambique and Peru) has zero exposed instead of missing
 
-## ## Remove data that appears to be artifacts rather than real data
-## ## viol01_wife
-## What is wrong with these? Honduras, Moldova and Timor-Leste
-## HND                         1.0000000 0.00000000  3304
-## MDA                         1.0000000 0.00000000   939
-## Guinea has only missing,
-## Mozambique has only non exposed, can't be right.
-
-my.dt.temp <- my.dt.temp[which(country %in% c("HND", "MDA", "MOZ", "GIN") == FALSE), ]
-
-## Use the string instead of the digit code, so we get more informative labels
-my.dt.temp[, country := factor(globallivingconditions::iso.3166$String[match(country.code.ISO.3166.alpha.3, globallivingconditions::iso.3166$numeric)]), ]
+my.dt.temp <- my.dt.temp[which(country %in% c("Bangladesh", "Colombia", "Guinea", "Mozambique", "Democratic Republic of the Congo", "Namibia", "Indonesia") == FALSE), ]
 
 ## keep only the needed columns. Keep incomplete cases so that we can
 ## calculate the number of women who answered the questions that the
@@ -520,7 +552,7 @@ my.dt.temp[, country := factor(globallivingconditions::iso.3166$String[match(cou
 ## does not require data on exposure. Regression on the other hand do
 ## not require coordinates, but do require exposure data.
 
-my.dt.clean <- my.dt.temp[which(is.na(couple_attitudes) == FALSE &
+these <- which(is.na(couple_attitudes) == FALSE &
                                 is.na(viol01_wife) == FALSE &
                                 is.na(justifyIPV_cluster) == FALSE &
                                 is.na(Education) == FALSE &
@@ -533,25 +565,17 @@ my.dt.clean <- my.dt.temp[which(is.na(couple_attitudes) == FALSE &
                                 is.na(lnage_wife) == FALSE &
                                 is.na(gni) == FALSE &
                                 is.na(gdi) == FALSE
-                                ),                                
-                          list(viol01_wife, couple_attitudes, Education, edudeviation, decide_purchases, decide_health, gdi, gni, viol01_cluster, justifyIPV_cluster, iwi2, country, cluster1, ln_numb_of_children, lnage_wife, literate_couple), ]
+               )
 
-## Logg number of cases lost here
-globallivingconditions::my.log.f(paste("Number of cases lost due to missing data in my.dt.temp:", nrow(my.dt.temp) - nrow(my.dt.clean)))
+## stats for missing data.
+my.dt.missing <- my.dt.temp[-these, list(viol01_wife, couple_attitudes, Education, edudeviation, decide_purchases, decide_health, gdi, gni, viol01_cluster, justifyIPV_cluster, iwi2, country, cluster1, ln_numb_of_children, lnage_wife, literate_couple), ]
+
+my.dt.clean <- my.dt.temp[these,                                
+                          list(viol01_wife, couple_attitudes, Education, edudeviation, decide_purchases, decide_health, gdi, gni, viol01_cluster, justifyIPV_cluster, iwi2, country, cluster1, ln_numb_of_children, lnage_wife, literate_couple), ]
 
 ## z-standardize some numeric variables
 for(var in c("gni", "iwi2", "gdi")){
     my.dt.clean[[var]] <- scale(my.dt.clean[[var]])
-}
-
-## Treat the states of India as countries (note that they already have separate values for GDI and GNI, the country change only affects the random intercept).
-these <- which(my.dt.clean$country == "India")
-## make country a character vector so that we can manipulate it and add new values
-my.dt.clean$country <- as.character(my.dt.clean$country)
-if(length(these) > 0){
-    my.dt.clean$country[these] <- as.vector(sapply(as.character(my.dt.clean$cluster1[these]), function(x) {
-        strsplit(x, ".", fixed = TRUE)[[1]][2]
-    }))
 }
 
 ## Make factors, so that the levels are clear
@@ -583,8 +607,6 @@ countries.codes.asia <- c("Andaman And Nicobar Islands",
    "Telangana", "Tripura", "Uttar Pradesh", "Uttarakhand",
    "West Bengal", "Cambodia", "Pakistan", "Myanmar", "Nepal", "Philippines", "Bangladesh")
 
-my.dt[, country := factor(globallivingconditions::iso.3166$String[match(country.code.ISO.3166.alpha.3, globallivingconditions::iso.3166$numeric)]), ]
-
 n.persons.exposure.asia <- my.dt[country %in%
   countries.codes.asia, length(which(is.na(woman.exposed.to.IPV)
   == FALSE)), ]
@@ -596,7 +618,7 @@ n.surveys.exposure.asia <- length(unique(sapply(strsplit(as.character(
 
 n.persons.attitudes.asia <- my.dt[country %in% countries.codes.asia, length(which(is.na(woman.thinks.IPV.can.be.justified) == FALSE)), ]
 n.local.areas.attitudes.asia <- my.dt[country %in% countries.codes.asia &
-  is.na(couple_attitudes) == FALSE, length(unique(ClusterID)), ]
+  is.na(woman.thinks.IPV.can.be.justified) == FALSE, length(unique(ClusterID)), ]
 n.surveys.attitudes.asia <- length(unique(sapply(strsplit(as.character(my.dt$ClusterID), ".", fixed = TRUE), function(x) { paste(x[c(1, 3)], collapse = ".") })))
 
 countries.africa <- c("Madagascar", "Egypt", "Benin", "Burkina Faso", "Cameroon", "Chad", "Côte d'Ivoire", "Gabon",
@@ -607,12 +629,12 @@ countries.africa <- c("Madagascar", "Egypt", "Benin", "Burkina Faso", "Cameroon"
      "Democratic Republic of the Congo", "Burundi", "Angola")
 n.persons.attitudes.africa <- my.dt[country %in% countries.africa &
                                         is.na(lon) == FALSE,
-                               length(which(is.na(couple_attitudes) == FALSE)), ]
+                               length(which(is.na(woman.thinks.IPV.can.be.justified) == FALSE)), ]
 n.local.areas.attitudes.africa <- my.dt[country %in% countries.africa &
- is.na(lon) == FALSE & is.na(couple_attitudes) == FALSE, length(unique(ClusterID)), ]
+ is.na(lon) == FALSE & is.na(woman.thinks.IPV.can.be.justified) == FALSE, length(unique(ClusterID)), ]
 n.surveys.attitudes.africa <- length(unique(sapply(strsplit(as.character(
     my.dt[country %in% countries.africa & is.na(lon) == FALSE &
-                is.na(couple_attitudes) == FALSE, ClusterID]),
+                is.na(woman.thinks.IPV.can.be.justified) == FALSE, ClusterID]),
     ".", fixed = TRUE), function(x) { paste(x[c(1, 3)], collapse = ".") })))
 
 n.persons.exposure.africa <- my.dt[country %in% countries.africa &
