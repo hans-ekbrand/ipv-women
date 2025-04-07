@@ -145,7 +145,7 @@ Democratic Republic of the Congo and Namibia has zero overlap between attitudes 
 %   Jordan                                0   2481
 %   Maldives                              0   1765
 
-The only remaining problems with missing data is why Telangana and Tamil Nadu lose cases, what is missing there? and why Bangladesh does no turn up in the kriging even when there are 19654 cases in justifyIPV\_cluster. Indonesia (360) is not present in justifyIPV_cluster, perhaps missing coordinates? Then it could be added by the same procedure as Afghanistan via sampling based on the region names, but don't spend time on that just now.
+The only remaining problems with missing data is why Telangana and Tamil Nadu lose cases, what is missing there? and why Bangladesh does no turn up in the kriging even when there are 19654 cases in justifyIPV\_cluster. Indonesia (360) is not present in justifyIPV\_cluster, perhaps missing coordinates? Then it could be added by the same procedure as Afghanistan via sampling based on the region names, but don't spend time on that just now.
 
 <<load.data.from.scratch>>=
 library(devtools)
@@ -552,19 +552,19 @@ my.dt.temp <- my.dt.temp[which(country %in% c("Bangladesh", "Colombia", "Guinea"
 ## does not require data on exposure. Regression on the other hand do
 ## not require coordinates, but do require exposure data.
 
-these <- which(is.na(couple_attitudes) == FALSE &
-                                is.na(viol01_wife) == FALSE &
-                                is.na(justifyIPV_cluster) == FALSE &
-                                is.na(Education) == FALSE &
-                                is.na(edudeviation) == FALSE &
-                                is.na(decide_purchases) == FALSE &
-                                is.na(decide_health) == FALSE &
-                                is.na(iwi2) == FALSE &
-                                is.na(ln_numb_of_children) == FALSE &
-                                is.na(literate_couple) == FALSE &
-                                is.na(lnage_wife) == FALSE &
-                                is.na(gni) == FALSE &
-                                is.na(gdi) == FALSE
+these <- which(is.na(my.dt.temp$couple_attitudes) == FALSE &
+                                is.na(my.dt.temp$viol01_wife) == FALSE &
+                                is.na(my.dt.temp$justifyIPV_cluster) == FALSE &
+                                is.na(my.dt.temp$Education) == FALSE &
+                                is.na(my.dt.temp$edudeviation) == FALSE &
+                                is.na(my.dt.temp$decide_purchases) == FALSE &
+                                is.na(my.dt.temp$decide_health) == FALSE &
+                                is.na(my.dt.temp$iwi2) == FALSE &
+                                is.na(my.dt.temp$ln_numb_of_children) == FALSE &
+                                is.na(my.dt.temp$literate_couple) == FALSE &
+                                is.na(my.dt.temp$lnage_wife) == FALSE &
+                                is.na(my.dt.temp$gni) == FALSE &
+                                is.na(my.dt.temp$gdi) == FALSE
                )
 
 ## stats for missing data.
