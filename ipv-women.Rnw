@@ -1152,7 +1152,7 @@ with my_model:
 
 \subsection{Start sampling parameter values}
 
-<<splines-fit-model-12, engine = "python", cache = TRUE, echo = TRUE, eval = ! file.exists("ipv-women.pydata")>>=
+<<splines-fit-model-12, engine = "python", cache = TRUE, echo = TRUE>>=
 import pickle
 import pymc.sampling.jax
 import arviz
