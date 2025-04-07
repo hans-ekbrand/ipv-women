@@ -159,7 +159,7 @@ my.dt <- download.and.harmonise(
     dhs.password=credentials$dhs.password,
     vars.to.keep = NULL,
     file.types.to.download = c("PR", "GE", "IR", "MR", "KR"),
-    waves = list("Bangladesh" = "81", "Congo Democratic Republic" = "61", "Egypt" = "61", "Indonesia" = "71",
+    waves = list("Bangladesh" = "81", "Congo Democratic Republic" = "61", "Egypt" = "61", "Indonesia" = "71", "Jordan" = "81",
                  "Kyrgyz Republic" = "61", "Lesotho" = "81", "Namibia" = "61", "Philippines" = "82",
                  "Senegal" = "8B", "Yemen" = "61", 
         "Afghanistan" = "71", "Angola" = "71", "Armenia" = "72", "Benin" = "71", "Burkina Faso" = "81", 
