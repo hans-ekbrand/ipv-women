@@ -1376,7 +1376,8 @@ plot(y = results[["None justifys IPV"]]["50%",],
      type = "l", col = "red", ylim = c(min(unlist(results)), max(unlist(results))),
      lwd = 1)
 grid()
-my.cols <- c("red", "darkgreen", "blue", "orange")
+## my.cols <- c("red", "darkgreen", "blue", "orange")
+my.cols <- c("darkgreen", "red", "orange", "blue")
 my.alpha.cols <- sapply(my.cols, transparent, alpha = 0.6)
 my.names <- c("None justifys IPV", attitudes)
 for(i in 1:length(my.names)){
@@ -1391,7 +1392,7 @@ legend("right",
        title = "Justifications in the couple",
        legend = c("No one justifies IPV", "Husband justifies IPV", 
                   "Wife justifies IPV", "Wife & husband justify IPV"), 
-       col = c("red", "blue", "orange", "darkgreen"), 
+       col = c("darkgreen", "orange", "blue", "red"), 
        lwd = 2, 
        lty = 1, 
        bty = "n", 
@@ -1482,7 +1483,7 @@ legend("right",
        title = "Justifications in the couple",
        legend = c("No one justifies IPV", "Husband justifies IPV", 
                   "Wife justifies IPV", "Wife & husband justify IPV"), 
-       col = c("red", "blue", "orange", "darkgreen"), 
+       col = c("darkgreen", "orange", "blue", "red"),
        lwd = 3, 
        lty = 1, 
        bty = "n", 
