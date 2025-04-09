@@ -1407,7 +1407,7 @@ legend("right",
 Figure \vref{fig:splines-plot-predictions} shows predicted probablities for the wife to have experienced violence from her current husband, and while visual inspection of that graph can give insight in how large proportion of the women in the neibourhood must think that IPV can be justified before we can say that probability of IPV increases, let us quantify this properly.
 
 <<splines-marginal.effect.of.neighbourhood>>=
-results <- sapply(mms, function(my.mm){
+results.marginal <- sapply(mms, function(my.mm){
     my.prob <- plogis(params.matrix %*% t(my.mm))
     ## 2000 samples, 78 cases, for different values on the 3 splines,
     ## ordered so that row 1 has 0 on all splines and row 78 has 1.0 on
@@ -1436,13 +1436,13 @@ results <- sapply(mms, function(my.mm){
 
 <<marginal.effect.positive.at>>=
 ## Find the points where the lines intersect the X-axis.
-marginal.effect.positive.at <- sapply(names(results), function(attitude){
-    index.2 <- head(which(results[[attitude]]["2.5%",] >= 0), 1)
+marginal.effect.positive.at <- sapply(names(results.marginal), function(attitude){
+    index.2 <- head(which(results.marginal[[attitude]]["2.5%",] >= 0), 1)
     index.1 <- index.2 - 1
     x.2 <- interesting.points[["justifyIPV_cluster"]][index.2]
     x.1 <- interesting.points[["justifyIPV_cluster"]][index.1]
-    y.1 <- results[[attitude]]["2.5%", ][index.1]
-    y.2 <- results[[attitude]]["2.5%", ][index.2]
+    y.1 <- results.marginal[[attitude]]["2.5%", ][index.1]
+    y.2 <- results.marginal[[attitude]]["2.5%", ][index.2]
     ## interpolate the x value
     ## calculate the slope
     slope = (y.2 - y.1)/(x.2-x.1)
@@ -1455,16 +1455,16 @@ marginal.effect.positive.at <- sapply(names(results), function(attitude){
 
 <<splines-plot-marginal-effect, fig.cap = paste0("Lower bounds of the credible intervals of the marginal effect of the attitudes of the other women in the local area on the probability of IPV in different types of couples. For couples where no one justifies IPV, the effect of the attitudes of the neighbourhood becomes 'statistically significant' when the proportion of women in the neighbourhood who thinks IPV can be justified is above ", round(marginal.effect.positive.at[1], 2), ". The other types of couples are less susceptible to the attitudes of the women in the neighbourhood, but even in couples where both the husband and the wife thinks IPV can be justified, the attitudes of the neighbourhood have a measurable effect on IPV when the proportion of women in the neighbourhood who thinks IPV can be justified is above ", round(marginal.effect.positive.at[2], 2), ". n = ", nrow(ipv.mm), "."), fig.height=3, fig.width = 6, fig.align = "center", dev="png">>=
 par(mar = c(4, 5, 1, 14))
-plot(y = results[["None justifys IPV"]]["2.5%",],
+plot(y = results.marginal[["None justifys IPV"]]["2.5%",],
      x = interesting.points[["justifyIPV_cluster"]],
      xlab = "Neighbourhood justification of IPV",
      ylab = "Marginal effect on IPV (lower bound)",
-     type = "l", col = "white", ylim = c(min(unlist(results)), 0.16),
+     type = "l", col = "white", ylim = c(min(unlist(results.marginal)), 0.16),
      lwd = 1)
 grid()
 my.names <- c("None justifys IPV", attitudes)
 for(i in 1:length(my.names)){
-    lines(y = results[[my.names[i]]]["2.5%",],
+    lines(y = results.marginal[[my.names[i]]]["2.5%",],
           x = interesting.points[["justifyIPV_cluster"]],
           col = my.cols[i], lwd = 3, lty = 1)
 }
@@ -1495,6 +1495,72 @@ legend("right",
 
 
 @
+
+<<dual-plot, fig.cap = "Predictions and marginal effects.", fig.width = 6, fig.height = 3>>=
+## Layout: 2 rows, one for plots, one for legend
+layout(matrix(c(1, 2, 3, 3), nrow = 2, byrow = TRUE), heights = c(4, 1))
+
+## Plot 1
+par(mar = c(4, 4, 2, 1), cex.axis = 0.7, cex.lab = 0.6)  # margins: bottom, left, top, right
+plot(y = results[["None justifys IPV"]]["50%",],
+     x = interesting.points[["justifyIPV_cluster"]],
+     xlab = "Neighbourhood justification of IPV",
+     ylab = "Probability of IPV",
+     main = "Predicted probabilities",     
+     type = "l", col = "red", ylim = c(min(unlist(results)), max(unlist(results))),
+     lwd = 1)
+grid()
+my.cols <- c("darkgreen", "red", "orange", "blue")
+my.alpha.cols <- sapply(my.cols, cooltools::transparent, alpha = 0.6)
+my.names <- c("None justifys IPV", attitudes)
+for(i in 1:length(my.names)){
+    polygon(y = c(results[[my.names[i]]]["2.5%",], rev(results[[my.names[i]]]["97.5%",])),
+            x = c(interesting.points[["justifyIPV_cluster"]], rev(interesting.points[["justifyIPV_cluster"]])), col = my.alpha.cols[i], border = NA)
+    lines(y = results[[my.names[i]]]["50%",],
+          x = interesting.points[["justifyIPV_cluster"]],
+          col = my.cols[i], lwd = 1, lty = 1)
+}
+
+## Plot 2
+plot(y = results.marginal[["None justifys IPV"]]["2.5%",],
+     x = interesting.points[["justifyIPV_cluster"]],
+     xlab = "Neighbourhood justification of IPV",
+     ylab = "Marginal effect on IPV (lower bound)",
+     type = "l", col = "white", ylim = c(min(unlist(results.marginal)), 0.16),
+     main = "Marginal effect",
+     lwd = 1)
+grid()
+my.names <- c("None justifys IPV", attitudes)
+for(i in 1:length(my.names)){
+    lines(y = results.marginal[[my.names[i]]]["2.5%",],
+          x = interesting.points[["justifyIPV_cluster"]],
+          col = my.cols[i], lwd = 3, lty = 1)
+}
+abline(h = 0, lty = 2)
+## Add some hints.
+for(i in 1:4){
+    segments(x0=marginal.effect.positive.at[i], y0=-0.0075, y1=0.0075, col = my.cols[i], lwd = 1)
+    ## odd i:s above, even i:s below.
+    my.y <- -0.0125 * (-1)^i
+    text(x=marginal.effect.positive.at[i], y = my.y,
+         labels=round(marginal.effect.positive.at[i], 2), col = my.cols[i], adj = 0.5, cex = 0.5)    
+}
+
+## Legend in the bottom row
+par(mar = c(0, 0, 0, 0))
+plot.new()
+legend("center",
+       title = "Justifications in the couple",
+       legend = c("No one justifies IPV", "Husband justifies IPV", 
+                  "Wife justifies IPV", "Wife & husband justify IPV"), 
+       col = c("darkgreen", "orange", "blue", "red"),
+       lwd = 3, 
+       lty = 1, 
+       bty = "n", 
+       ncol = 2,
+       cex = 0.9)
+
+@ 
 
 \section{Kriging}
 
