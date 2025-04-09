@@ -1433,23 +1433,7 @@ results <- sapply(mms, function(my.mm){
 
 @
 
-<<splines-plot-marginal-effect, fig.cap = "Lower bounds of the high density interval of the marginal effect of the attitudes of the other women in the local area on the probability of IPV. For couples where no one justifies IPV, the effect of the attitudes neighbourhood becomes statistically significant when the proportion of women in the neighbourhood is above 0.14.", fig.height=4, fig.width = 6, fig.align = "center", dev="png">>=
-par(mar = c(4, 5, 5, 14))
-plot(y = results[["None justifys IPV"]]["2.5%",],
-     x = interesting.points[["justifyIPV_cluster"]],
-     xlab = "Neighbourhood justification of IPV",
-     ylab = "Marginal effect on IPV (lower bound)",
-     type = "l", col = "white", ylim = c(min(unlist(results)), 0.16),
-     lwd = 1)
-grid()
-my.names <- c("None justifys IPV", attitudes)
-for(i in 1:length(my.names)){
-    lines(y = results[[my.names[i]]]["2.5%",],
-          x = interesting.points[["justifyIPV_cluster"]],
-          col = my.cols[i], lwd = 3, lty = 1)
-}
-abline(h = 0, lty = 2)
-
+<<marginal.effect.positive.at>>=
 ## Find the points where the lines intersect the X-axis.
 marginal.effect.positive.at <- sapply(names(results), function(attitude){
     index.2 <- head(which(results[[attitude]]["2.5%",] >= 0), 1)
@@ -1466,11 +1450,30 @@ marginal.effect.positive.at <- sapply(names(results), function(attitude){
     x <- needed.change/slope + x.1
 })
 
+@ 
+
+<<splines-plot-marginal-effect, fig.cap = paste0("Lower bounds of the high density interval of the marginal effect of the attitudes of the other women in the local area on the probability of IPV. For couples where no one justifies IPV, the effect of the attitudes neighbourhood becomes statistically significant when the proportion of women in the neighbourhood is above", round(marginal.effect.positive.at[0], 2), "."), fig.height=4, fig.width = 6, fig.align = "center", dev="png">>=
+par(mar = c(4, 5, 5, 14))
+plot(y = results[["None justifys IPV"]]["2.5%",],
+     x = interesting.points[["justifyIPV_cluster"]],
+     xlab = "Neighbourhood justification of IPV",
+     ylab = "Marginal effect on IPV (lower bound)",
+     type = "l", col = "white", ylim = c(min(unlist(results)), 0.16),
+     lwd = 1)
+grid()
+my.names <- c("None justifys IPV", attitudes)
+for(i in 1:length(my.names)){
+    lines(y = results[[my.names[i]]]["2.5%",],
+          x = interesting.points[["justifyIPV_cluster"]],
+          col = my.cols[i], lwd = 3, lty = 1)
+}
+abline(h = 0, lty = 2)
+
 ## Add some hints.
 for(i in 1:4){
     segments(x0=marginal.effect.positive.at[i], y0=-0.0075, y1=0.0075, col = my.cols[i], lwd = 1)
     ## odd i:s above, even i:s below.
-    my.y <- -0.0125 * -1^i
+    my.y <- -0.0125 * (-1)^i
     text(x=marginal.effect.positive.at[i], y = my.y,
          labels=round(marginal.effect.positive.at[i], 2), col = my.cols[i], adj = 0.5, cex = 0.5)    
 }
@@ -1481,7 +1484,7 @@ legend("right",
                   "Wife justifies IPV", "Wife & husband justify IPV"), 
        col = c("red", "blue", "orange", "darkgreen"), 
        lwd = 3, 
-       lty = 2, 
+       lty = 1, 
        bty = "n", 
        ncol = 1,
        inset = c(-1.3, 0),
