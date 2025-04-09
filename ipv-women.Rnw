@@ -64,7 +64,7 @@ To compile this document, including rendering the graphs, a working «R« and «
 
 <<install.packages, cache = FALSE>>=
 ## Install necessary R packages
-required.packages <- c("lme4", "data.table", "xtable", "effects", "parallel", "future", "doFuture", "foreach", "sf", "terra", "parallelly", "cooltools", "raster", "formatR", "lwgeom", "autoFRK", "rnaturalearthdata", "rnaturalearth", "spatstat.geom", "spatstat.random", "reticulate", "devtools")
+required.packages <- c("lme4", "data.table", "xtable", "effects", "parallel", "future", "doFuture", "foreach", "sf", "terra", "parallelly", "cooltools", "raster", "formatR", "lwgeom", "autoFRK", "rnaturalearthdata", "rnaturalearth", "spatstat.geom", "spatstat.random", "reticulate", "devtools", "mice")
 for(package in required.packages){
     if(!require(package, character.only=TRUE)){
         install.packages(package, character.only=TRUE)
@@ -470,14 +470,16 @@ gdi.long <- melt(gdi.clean, id.vars = "GDLCODE",
 gdi.long[, year.of.interview := as.numeric(as.character(year.of.interview)), ]
 
 ## impute data for years not estimated by GDL.
-## To improve imputations, add country as a variable so that subregions share 
-## the same country
-## gdi.long[, country := factor(substring(GDLCODE, 1, 3)), ]
-## gdi.long$GDLCODE <- factor(gdi.long$GDLCODE)
-## imp.model.gdi <- mice::mice(gdi.long, method = "pmm", m = 1, printFlag = FALSE)
-## gdi.long.complete <- mice::complete(imp.model.gdi)
-## data.table::setDT(gdi.long.complete)
-## gdi.long <- gdi.long.complete
+## only used for Chad 2014-2015. Subnational figures not required.
+## Simplify by using only the national figures when imputing.
+gdi.long.base.for.imputations <- gdi.long[which(nchar(as.character(gdi.long$GDLCODE)) == 4), ]
+## remove cases with missing expect Chad 2014 and later
+gdi.long.base.for.imputations <- gdi.long.base.for.imputations[is.na(GDI) == FALSE |
+                                                               (GDLCODE == "TCDt" & year.of.interview > 2013), ]
+imp.model.gdi <- mice::mice(gdi.long.base.for.imputations, method = "pmm", m = 1, printFlag = FALSE)
+gdi.long.complete <- mice::complete(imp.model.gdi)
+data.table::setDT(gdi.long.complete)
+gdi.long <- gdi.long.complete
 
 ## Now that we know which GLDCODE for which coordinate, create a data set with ClusterID, coordinates, and year, and add the GDL data to that set.
 
