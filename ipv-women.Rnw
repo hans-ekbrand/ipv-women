@@ -479,7 +479,11 @@ gdi.long.base.for.imputations <- gdi.long.base.for.imputations[is.na(GDI) == FAL
 imp.model.gdi <- mice::mice(gdi.long.base.for.imputations, method = "pmm", m = 1, printFlag = FALSE)
 gdi.long.complete <- mice::complete(imp.model.gdi)
 data.table::setDT(gdi.long.complete)
-gdi.long <- gdi.long.complete
+## Keep only Chad in the this set.
+gdi.long.chad <- gdi.long.complete[GDLCODE == "TCDt", ]
+## remove Chad from the main set
+gdi.long <- gdi.long[GDLCODE != "TCDt", ]
+gdi.long <- rbind(gdi.long, gdi.long.chad)
 
 ## Now that we know which GLDCODE for which coordinate, create a data set with ClusterID, coordinates, and year, and add the GDL data to that set.
 
