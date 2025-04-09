@@ -1496,12 +1496,27 @@ legend("right",
 
 @
 
-<<dual-plot, fig.cap = "Predictions and marginal effects.", fig.width = 6, fig.height = 3>>=
+<<dual-plot, fig.cap = "Predictions and marginal effects.", fig.width = 5, fig.height = 3>>=
 ## Layout: 2 rows, one for plots, one for legend
-layout(matrix(c(1, 2, 3, 3), nrow = 2, byrow = TRUE), heights = c(4, 1))
+## layout(matrix(c(1, 2, 3, 3), nrow = 2, byrow = TRUE), heights = c(4, 1))
+layout(matrix(c(1, 1, 2, 3), nrow = 2, byrow = TRUE), heights = c(1, 4))
+
+## Legend 
+par(mar = c(0, 0, 0, 0))
+plot.new()
+legend("center",
+       title = "Justifications in the couple",
+       legend = c("No one justifies IPV", "Husband justifies IPV", 
+                  "Wife justifies IPV", "Wife & husband justify IPV"), 
+       col = c("darkgreen", "orange", "blue", "red"),
+       lwd = 3, 
+       lty = 1, 
+       bty = "n", 
+       ncol = 2,
+       cex = 0.9)
 
 ## Plot 1
-par(mar = c(4, 4, 2, 1), cex.axis = 0.7, cex.lab = 0.6)  # margins: bottom, left, top, right
+par(mar = c(4, 4, 2, 1), cex.axis = 0.6, cex.lab = 0.7, cex.main = 0.7)
 plot(y = results[["None justifys IPV"]]["50%",],
      x = interesting.points[["justifyIPV_cluster"]],
      xlab = "Neighbourhood justification of IPV",
@@ -1545,20 +1560,6 @@ for(i in 1:4){
     text(x=marginal.effect.positive.at[i], y = my.y,
          labels=round(marginal.effect.positive.at[i], 2), col = my.cols[i], adj = 0.5, cex = 0.5)    
 }
-
-## Legend in the bottom row
-par(mar = c(0, 0, 0, 0))
-plot.new()
-legend("center",
-       title = "Justifications in the couple",
-       legend = c("No one justifies IPV", "Husband justifies IPV", 
-                  "Wife justifies IPV", "Wife & husband justify IPV"), 
-       col = c("darkgreen", "orange", "blue", "red"),
-       lwd = 3, 
-       lty = 1, 
-       bty = "n", 
-       ncol = 2,
-       cex = 0.9)
 
 @ 
 
