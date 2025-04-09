@@ -1468,8 +1468,10 @@ marginal.effect.positive.at <- sapply(names(results), function(attitude){
 
 ## Add some hints.
 for(i in 1:4){
-    segments(x0=marginal.effect.positive.at[i], y0=-0.01, y1=0.01, col = my.cols[i], lwd = 3)
-    text(x=marginal.effect.positive.at[i], y = 0.0125,
+    segments(x0=marginal.effect.positive.at[i], y0=-0.0075, y1=0.0075, col = my.cols[i], lwd = 1)
+    ## odd i:s above, even i:s below.
+    my.y <- -0.0125 * -1^i
+    text(x=marginal.effect.positive.at[i], y = my.y,
          labels=round(marginal.effect.positive.at[i], 2), col = my.cols[i], adj = 0.5, cex = 0.5)    
 }
 
