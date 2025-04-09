@@ -1367,7 +1367,7 @@ results <- sapply(mms, function(my.mm){
 
 Plot the predicted probabilities.
 
-<<splines-plot-predictions, fig.cap = paste0("Predicted probabilities for a woman to be exposed to IPV conditioned on the attitudes in the couple and the attitudes of the other women in the local area. n = ", nrow(ipv.mm), "."), fig.height=4, fig.width = 6, fig.align = "center", dev="png">>=
+<<splines-plot-predictions, fig.cap = paste0("Predicted probabilities for a woman to be exposed to IPV conditioned on the attitudes in the couple and the attitudes of the other women in the local area. n = ", nrow(ipv.mm), "."), fig.height=3.5, fig.width = 6, fig.align = "center", dev="png">>=
 par(mar = c(4, 5, 5, 14))
 plot(y = results[["None justifys IPV"]]["50%",],
      x = interesting.points[["justifyIPV_cluster"]],
