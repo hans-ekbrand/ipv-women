@@ -1376,7 +1376,7 @@ plot(y = results[["None justifys IPV"]]["50%",],
      type = "l", col = "red", ylim = c(min(unlist(results)), max(unlist(results))),
      lwd = 1)
 grid()
-my.cols <- c("red", "darkgreen", "lightgreen", "orange")
+my.cols <- c("red", "darkgreen", "blue", "orange")
 my.alpha.cols <- sapply(my.cols, transparent, alpha = 0.6)
 my.names <- c("None justifys IPV", attitudes)
 for(i in 1:length(my.names)){
@@ -1399,6 +1399,95 @@ legend("right",
        inset = c(-1.3, 0),
        xpd = TRUE
 )
+
+@
+
+\subsection{Marginal effect of the neighbourhood}
+Figure \vref{fig:splines-plot-predictions} shows predicted probablities for the wife to have experienced violence from her current husband, and while visual inspection of that graph can give insight in how large proportion of the women in the neibourhood must think that IPV can be justified before we can say that probability of IPV increases, let us quantify this properly.
+
+<<splines-marginal.effect.of.neighbourhood>>=
+results <- sapply(mms, function(my.mm){
+    my.prob <- plogis(params.matrix %*% t(my.mm))
+    ## 2000 samples, 78 cases, for different values on the 3 splines,
+    ## ordered so that row 1 has 0 on all splines and row 78 has 1.0 on
+    ## spline 2, representing all that all women in the neighbourhood
+    ## thinks IPV can be justfied.
+
+    ## my.prob is transformed so it has 78 columns
+    ## Calculate the quantity difference between the first column and the
+    ## current column for all columns.
+
+    ## To get meaningful uncertainty estimates, use independent
+    ## samples of the sampled parameters for the first row and for the
+    ## other row.
+    sapply(1:ncol(my.prob), function(i) {
+        ## To get smooth results, do this many times for each column
+        diffs.against.first.column <- replicate(n=200, {
+            single.result <- my.prob[sample(nrow(my.prob)), i] - my.prob[sample(nrow(my.prob)), 1] 
+            quantile(single.result, probs = my.probs)
+        })
+        ## Use the mean of the quantiles
+        apply(diffs.against.first.column, 1, mean)
+    })
+}, simplify = FALSE)
+
+@
+
+<<splines-plot-marginal-effect, fig.cap = "Lower bounds of the high density interval of the marginal effect of the attitudes of the other women in the local area on the probability of IPV. For couples where no one justifies IPV, the effect of the attitudes neighbourhood becomes statistically significant when the proportion of women in the neighbourhood is above 0.14.", fig.height=4, fig.width = 6, fig.align = "center", dev="png">>=
+par(mar = c(4, 5, 5, 14))
+plot(y = results[["None justifys IPV"]]["2.5%",],
+     x = interesting.points[["justifyIPV_cluster"]],
+     xlab = "Neighbourhood justification of IPV",
+     ylab = "Marginal effect on IPV (lower bound)",
+     type = "l", col = "white", ylim = c(min(unlist(results)), 0.11),
+     lwd = 1)
+grid()
+my.names <- c("None justifys IPV", attitudes)
+for(i in 1:length(my.names)){
+    lines(y = results[[my.names[i]]]["2.5%",],
+          x = interesting.points[["justifyIPV_cluster"]],
+          col = my.cols[i], lwd = 3, lty = 2)
+    
+}
+abline(h = 0, lty = 2)
+
+## Find the points where the lines intersect the X-axis.
+marginal.effect.positive.at <- sapply(names(results), function(attitude){
+    index.2 <- head(which(results[[attitude]]["2.5%",] >= 0), 1)
+    index.1 <- index.2 - 1
+    x.2 <- interesting.points[["justifyIPV_cluster"]][index.2]
+    x.1 <- interesting.points[["justifyIPV_cluster"]][index.1]
+    y.1 <- results[[attitude]]["2.5%", ][index.1]
+    y.2 <- results[[attitude]]["2.5%", ][index.2]
+    ## interpolate the x value
+    ## calculate the slope
+    slope = (y.2 - y.1)/(x.2-x.1)
+    ## given this rate of change, how much do we need to x.1 to get the intersection point?
+    needed.change <- abs(y.1)
+    x <- needed.change/slope + x.1
+})
+
+## Add some hints.
+for(i in 1:4){
+    segments(x0=marginal.effect.positive.at[i], y0=-0.01, y1=0.01, col = my.cols[i], lwd = 3)
+    text(x=marginal.effect.positive.at[i], y = 0.0125,
+         labels=round(marginal.effect.positive.at[i], 2), col = my.cols[i], adj = 0.5)    
+}
+
+legend("right",
+       title = "Justifications in the couple",
+       legend = c("No one justifies IPV", "Husband justifies IPV", 
+                  "Wife justifies IPV", "Wife & husband justify IPV"), 
+       col = c("red", "blue", "orange", "darkgreen"), 
+       lwd = 3, 
+       lty = 2, 
+       bty = "n", 
+       ncol = 1,
+       inset = c(-1.3, 0),
+       xpd = TRUE
+)
+
+
 
 @
 
