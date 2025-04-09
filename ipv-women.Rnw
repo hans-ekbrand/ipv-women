@@ -1439,15 +1439,14 @@ plot(y = results[["None justifys IPV"]]["2.5%",],
      x = interesting.points[["justifyIPV_cluster"]],
      xlab = "Neighbourhood justification of IPV",
      ylab = "Marginal effect on IPV (lower bound)",
-     type = "l", col = "white", ylim = c(min(unlist(results)), 0.11),
+     type = "l", col = "white", ylim = c(min(unlist(results)), 0.16),
      lwd = 1)
 grid()
 my.names <- c("None justifys IPV", attitudes)
 for(i in 1:length(my.names)){
     lines(y = results[[my.names[i]]]["2.5%",],
           x = interesting.points[["justifyIPV_cluster"]],
-          col = my.cols[i], lwd = 3, lty = 2)
-    
+          col = my.cols[i], lwd = 3, lty = 1)
 }
 abline(h = 0, lty = 2)
 
@@ -1471,7 +1470,7 @@ marginal.effect.positive.at <- sapply(names(results), function(attitude){
 for(i in 1:4){
     segments(x0=marginal.effect.positive.at[i], y0=-0.01, y1=0.01, col = my.cols[i], lwd = 3)
     text(x=marginal.effect.positive.at[i], y = 0.0125,
-         labels=round(marginal.effect.positive.at[i], 2), col = my.cols[i], adj = 0.5)    
+         labels=round(marginal.effect.positive.at[i], 2), col = my.cols[i], adj = 0.5, cex = 0.5)    
 }
 
 legend("right",
