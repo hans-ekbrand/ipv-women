@@ -145,7 +145,7 @@ Democratic Republic of the Congo and Namibia has zero overlap between attitudes 
 %   Jordan                                0   2481
 %   Maldives                              0   1765
 
-The only remaining problems with missing data is why Telangana and Tamil Nadu lose cases, what is missing there? and why Bangladesh does no turn up in the kriging even when there are 19654 cases in justifyIPV\_cluster. Indonesia (360) is not present in justifyIPV\_cluster, perhaps missing coordinates? Then it could be added by the same procedure as Afghanistan via sampling based on the region names, but don't spend time on that just now.
+Possible improvements: Indonesia has data on justifications but lacks GIS data. We could sample coordinates uniformily based on region, as we did for Afghanistan. Telangana and Tamil Nadu has almost 50\% missing data on litteracy.
 
 <<load.data.from.scratch>>=
 library(devtools)
