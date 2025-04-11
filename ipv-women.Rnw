@@ -1505,8 +1505,8 @@ par(mar = c(0, 0, 0, 0))
 plot.new()
 legend("center",
        title = "Justifications in the couple",
-       legend = c("No one justifies IPV", "Husband justifies IPV", 
-                  "Wife justifies IPV", "Wife & husband justify IPV"), 
+       legend = c("No one justifies IPV", "Only Husband justifies IPV", 
+                  "Only Wife justifies IPV", "Wife & husband justify IPV"), 
        col = c("darkgreen", "orange", "blue", "red"),
        lwd = 2, 
        lty = 1:4, 
