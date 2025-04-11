@@ -1509,7 +1509,7 @@ legend("center",
                   "Wife justifies IPV", "Wife & husband justify IPV"), 
        col = c("darkgreen", "orange", "blue", "red"),
        lwd = 3, 
-       lty = 1, 
+       lty = 1:4, 
        bty = "n", 
        ncol = 2,
        cex = 0.9)
@@ -1525,14 +1525,14 @@ plot(y = results[["None justifys IPV"]]["50%",],
      lwd = 1)
 grid()
 my.cols <- c("darkgreen", "red", "orange", "blue")
-my.alpha.cols <- sapply(my.cols, cooltools::transparent, alpha = 0.6)
+my.alpha.cols <- sapply(my.cols, cooltools::transparent, alpha = 0.8)
 my.names <- c("None justifys IPV", attitudes)
 for(i in 1:length(my.names)){
     polygon(y = c(results[[my.names[i]]]["2.5%",], rev(results[[my.names[i]]]["97.5%",])),
             x = c(interesting.points[["justifyIPV_cluster"]], rev(interesting.points[["justifyIPV_cluster"]])), col = my.alpha.cols[i], border = NA)
     lines(y = results[[my.names[i]]]["50%",],
           x = interesting.points[["justifyIPV_cluster"]],
-          col = my.cols[i], lwd = 1, lty = 1)
+          col = my.cols[i], lwd = 1, lty = i)
 }
 
 ## Right plot
@@ -1548,7 +1548,7 @@ my.names <- c("None justifys IPV", attitudes)
 for(i in 1:length(my.names)){
     lines(y = results.marginal[[my.names[i]]]["2.5%",],
           x = interesting.points[["justifyIPV_cluster"]],
-          col = my.cols[i], lwd = 3, lty = 1)
+          col = my.cols[i], lwd = 3, lty = i)
 }
 abline(h = 0, lty = 2)
 ## Add some visual hints for interpretation.
