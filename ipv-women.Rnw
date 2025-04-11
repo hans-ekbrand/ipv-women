@@ -1509,7 +1509,7 @@ legend("center",
                   "Only Wife justifies IPV", "Wife & husband justify IPV"), 
        col = c("darkgreen", "orange", "blue", "red"),
        lwd = 2, 
-       lty = c(1, 4, 2, 3), 
+       lty = c(1, 4, 3, 2), 
        bty = "n", 
        ncol = 2,
        cex = 0.9)
