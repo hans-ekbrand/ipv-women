@@ -2025,8 +2025,12 @@ print(xtable(data.frame(Country = names(justifications.tab), n = as.vector(justi
 
 <<splines-coverage-populations, results = "markup">>=
 new_cache <- wbstats::wb_cache()
-pop_data <- wbstats::wb_data("SP.POP.TOTL", country = iso.3166$String.code[match(unique(justifyIPV_cluster$country.code.ISO.3166.alpha.3), iso.3166$numeric)], start_date = 2019, end_date = 2019)
-sum(pop_data$SP.POP.TOTL)
+pop_data.1 <- wbstats::wb_data("SP.POP.TOTL", country = iso.3166$String.code[match(unique(justifyIPV_cluster$country.code.ISO.3166.alpha.3), iso.3166$numeric)], start_date = 2019, end_date = 2019)
+my.sum <- sum(pop_data.1$SP.POP.TOTL[which(pop_data$country %in% c(countries.africa, c("Afghanistan", "Cambodia", "India", "Pakistan", "Myanmar", "Nepal", "Philippines", "Bangladesh")))])
+print(paste("Number of women in the countries we provide justification of IPV estimates for:", my.sum/2))
+pop_data.2 <- wbstats::wb_data("SP.POP.TOTL", country = iso.3166$String.code[match(unique(viol01_cluster$country.code.ISO.3166.alpha.3), iso.3166$numeric)], start_date = 2019, end_date = 2019)
+my.sum <- sum(pop_data.2$SP.POP.TOTL[which(pop_data$country %in% c(countries.africa, c("Afghanistan", "Cambodia", "India", "Pakistan", "Myanmar", "Nepal", "Philippines", "Bangladesh")))])
+print(paste("Number of women in the countries we provide estimates of IPV for:", my.sum/2))
 @ 
 
 \bibliographystyle{apacite}
