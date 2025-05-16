@@ -850,7 +850,7 @@ my_tab_2 = unique_rows.iloc[:5, np.hstack((df.columns.get_loc("gdi"), range(len(
 <<splines-gdi-print.sorted.table, results='asis', echo = TRUE, cache = TRUE>>=
 my.tab <- py$my_tab_2
 library(xtable)
-print(xtable(my.tab, caption = "justifyIPV\\_cluster and some of the columns that will replace it in the model. These rows represents the right most part of figure \\vref{fig:splines-gdi-data-preparation-inspect-spline}; at 0.98 the last curve is at value 0.5927 and the second curve is at value 0.3720.", digits = 4, label = "tab:splines"), booktabs = TRUE)
+print(xtable(my.tab, caption = "GDI and some of the columns that will replace it in the model. These rows represents the right most part of figure \\vref{fig:splines-gdi-data-preparation-inspect-spline}; at 0.98 the last curve is at value 0.5927 and the second curve is at value 0.3720.", digits = 4, label = "tab:splines"), booktabs = TRUE)
 @
 
 To actually predict probabilities, we also need to save the data frame that was used as a model matrix, since we have sorted the rows, and added columns for the splines. Note that this csv-file include variables for which we will not save the parameter estimates (the random effects in the model) and might also include variables never used in the model at all.
@@ -1154,7 +1154,8 @@ df_results.to_csv("ipv-women-gdi-splines.csv", index=False)
 Inspect the r-hat statistics, and the High Density Intervals for the fixed effects parameters, see table \vref{tab:half-deciles}.
 
 <<splines-gdi-evaluate-model-2, engine = "python", results = "markup", cache = TRUE>>=
-import arviz
+import arviz, pickle
+my_fit_pymc = pickle.load(open('ipv-women-gdi.pydata', 'rb'))
 summary_df = arviz.summary(my_fit_pymc, var_names=["~country", "~cluster"], filter_vars="like")[["hdi_3%", "hdi_97%","r_hat"]]
 summary_df.to_csv("spline-gdi-evaluate-model-2-summary.csv", index=True)
 @
@@ -1167,7 +1168,8 @@ print(xtable(conv.tab, caption = "High Density Interval (HDI) and convergence st
 @ 
 \end{footnotesize}
 
-Show a trace plot of «couple\_attitudes«, note that these parameters only describe the effect of the attitudes in question when «justifyIPV\_cluster« is at zero, and also note that the reference category is ``No one accepts IVP''. Since there is no legend, this graph is not very informative, but it indicates that the model had enough tuning (or ``burn-in'') since the early samples are at the same level as the last samples; and the large fluctuations between nearby samples indicate that the parameter space is searched thoroughly, see figure \vref{fig:splines-gdi-evaluate-model-5}.
+
+Show a trace plot of «couple\_attitudes«, note that these parameters only describe the effect of the attitudes in question when «gdi« is at zero, and also note that the reference category is ``No one accepts IVP''. Since there is no legend, this graph is not very informative, but it indicates that the model had enough tuning (or ``burn-in'') since the early samples are at the same level as the last samples; and the large fluctuations between nearby samples indicate that the parameter space is searched thoroughly, see figure \vref{fig:splines-gdi-evaluate-model-5}.
 
 <<splines-gdi-evaluate-model-5, engine = "python", dev = "png", cache = TRUE, fig.cap = "Trace plot for the attitude of the couple.">>=
 arviz.plot_trace(my_fit_pymc, var_names = ["couple_attitudes"], compact = True)
@@ -1231,7 +1233,7 @@ mean.matrix <- as.matrix(my.means)
 Build the grid of values at which to generate predicted probabilities for each level of the factor variable that captures the attitudes of the couple. Even if splines have replaced the variable «justifyIPV\_cluster«, proceed as normal by finding relevant values on «justifyIPV\_cluster«, e.g. all non-extreme half-deciles, and for each interesting value on «justifyIPV\_cluster« find the corresponding set of values by extracting the values for the splines for cases that have the decile value on «justifyIPV\_cluster«. This is why «justifyIPV\_cluster« was retained in the model matrix even if it was not used when the model was fit to data.
 
 <<splines-gdi-find-interesting.points>>=
-quantiles <- quantile(ipv.mm$gdi, probs = seq(from = 0,  to = 1, by = 0.01))
+quantiles <- quantile(ipv.mm$gdi, probs = seq(from = 0.05,  to = 0.975, by = 0.01))
 
 ## Find the observed value closest to the quantile
 these <- sapply(quantiles, function(x) { which.min(abs(ipv.mm$gdi - x)) })
@@ -1242,7 +1244,7 @@ quantiles <- quantiles[keep.these]
 @
 
 <<splines-gdi-show-interesting.points, echo = FALSE, results="asis">>=
-print(xtable(interesting.points[seq(from = 1, to = nrow(interesting.points), length.out = 10), ], label = "tab:half-deciles", caption = "Some of the points of «justifyIPV\\_cluster« and the corresponding values on the splines used when predicting."), include.rownames = FALSE, booktabs = TRUE)
+print(xtable(interesting.points[seq(from = 1, to = nrow(interesting.points), length.out = 10), ], label = "tab:half-deciles", caption = "Some of the points of «gdi« and the corresponding values on the splines used when predicting."), include.rownames = FALSE, booktabs = TRUE)
 @
 
 Build one small model matrix for each level of the factor variable.
@@ -1344,14 +1346,14 @@ Plot the predicted probabilities.
 par(mar = c(4, 5, 1, 14))
 plot(y = results[["None justifys IPV"]]["50%",],
      x = interesting.points[["gdi"]],
-     xlab = "Neighbourhood justification of IPV",
+     xlab = "Gender Development Index",
      ylab = "Probability of IPV",
      type = "l", col = "red", ylim = c(min(unlist(results)), max(unlist(results))),
      lwd = 1)
 grid()
 ## my.cols <- c("red", "darkgreen", "blue", "orange")
 my.cols <- c("darkgreen", "red", "orange", "blue")
-my.alpha.cols <- sapply(my.cols, transparent, alpha = 0.6)
+my.alpha.cols <- sapply(my.cols, cooltools::transparent, alpha = 0.6)
 my.names <- c("None justifys IPV", attitudes)
 for(i in 1:length(my.names)){
     polygon(y = c(results[[my.names[i]]]["2.5%",], rev(results[[my.names[i]]]["97.5%",])),
@@ -1376,7 +1378,7 @@ legend("right",
 
 @
 
-\subsection{Marginal effect of the neighbourhood}
+\subsection{Marginal effect of the Gender Development Index}
 Figure \vref{fig:splines-gdi-plot-predictions} shows predicted probablities for the wife to have experienced violence from her current husband, and while visual inspection of that graph can give insight in how large proportion of the women in the neibourhood must think that IPV can be justified before we can say that probability of IPV increases, let us quantify this properly.
 
 <<splines-gdi-marginal.effect.of.neighbourhood>>=
@@ -1394,14 +1396,23 @@ results.marginal <- sapply(mms, function(my.mm){
     ## To get meaningful uncertainty estimates, use independent
     ## samples of the sampled parameters for the first row and for the
     ## other row.
+
+    ## Do not necessarily test against the first column, with splines that
+    ## might fail to find anything 'significant'
+
+    ## assume the marginal effect is negative, and thus locate the maximum
+    means <- apply(my.prob, 2, mean)
+    first.column.that.has.maxium.mean <- head(which(means == max(means)), 1)
+    
     sapply(1:ncol(my.prob), function(i) {
         ## To get smooth results, do this many times for each column
-        diffs.against.first.column <- replicate(n=200, {
-            single.result <- my.prob[sample(nrow(my.prob)), i] - my.prob[sample(nrow(my.prob)), 1] 
+        diffs.against.some.column <- replicate(n=200, {
+            single.result <- my.prob[sample(nrow(my.prob)), i] -
+                my.prob[sample(nrow(my.prob)), first.column.that.has.maxium.mean] 
             quantile(single.result, probs = my.probs)
         })
         ## Use the mean of the quantiles for each column
-        apply(diffs.against.first.column, 1, mean)
+        apply(diffs.against.some.column, 1, mean)
     })
 }, simplify = FALSE)
 
@@ -1409,13 +1420,13 @@ results.marginal <- sapply(mms, function(my.mm){
 
 <<marginal.effect.positive.at>>=
 ## Find the points where the lines intersect the X-axis.
-marginal.effect.positive.at <- sapply(names(results.marginal), function(attitude){
-    index.2 <- head(which(results.marginal[[attitude]]["2.5%",] >= 0), 1)
+marginal.effect.negative.at <- sapply(names(results.marginal), function(attitude){
+    index.2 <- head(which(results.marginal[[attitude]]["97.5%",] <= 0), 1)
     index.1 <- index.2 - 1
     x.2 <- interesting.points[["gdi"]][index.2]
     x.1 <- interesting.points[["gdi"]][index.1]
-    y.1 <- results.marginal[[attitude]]["2.5%", ][index.1]
-    y.2 <- results.marginal[[attitude]]["2.5%", ][index.2]
+    y.1 <- results.marginal[[attitude]]["97.5%", ][index.1]
+    y.2 <- results.marginal[[attitude]]["97.5%", ][index.2]
     ## interpolate the x value
     ## calculate the slope
     slope = (y.2 - y.1)/(x.2-x.1)
@@ -1426,18 +1437,20 @@ marginal.effect.positive.at <- sapply(names(results.marginal), function(attitude
 
 @ 
 
-<<splines-gdi-plot-marginal-effect, fig.cap = paste0("Lower bounds of the credible intervals of the marginal effect of the attitudes of the other women in the local area on the probability of IPV in different types of couples. For couples where no one justifies IPV, the effect of the attitudes of the neighbourhood becomes 'statistically significant' when the proportion of women in the neighbourhood who thinks IPV can be justified is above ", round(marginal.effect.positive.at[1], 2), ". The other types of couples are less susceptible to the attitudes of the women in the neighbourhood, but even in couples where both the husband and the wife thinks IPV can be justified, the attitudes of the neighbourhood have a measurable effect on IPV when the proportion of women in the neighbourhood who thinks IPV can be justified is above ", round(marginal.effect.positive.at[2], 2), ". n = ", nrow(ipv.mm), "."), fig.height=3, fig.width = 6, fig.align = "center", dev="png">>=
+<<splines-gdi-plot-marginal-effect, fig.cap = paste0("Upper bounds of the credible intervals of the marginal effect of the Gender Development Index on the probability of IPV in different types of couples. For couples where no one justifies IPV, the effect of the attitudes of the GDI becomes 'statistically significant' when the proportion of women in the neighbourhood who thinks IPV can be justified is above ", round(marginal.effect.negative.at[1], 2), ". The other types of couples are less susceptible to the attitudes of the women in the neighbourhood, but even in couples where both the husband and the wife thinks IPV can be justified, the attitudes of the neighbourhood have a measurable effect on IPV when the proportion of women in the neighbourhood who thinks IPV can be justified is above ", round(marginal.effect.negative.at[2], 2), ". n = ", nrow(ipv.mm), "."), fig.height=3, fig.width = 6, fig.align = "center", dev="png">>=
 par(mar = c(4, 5, 1, 14))
-plot(y = results.marginal[["None justifys IPV"]]["2.5%",],
+plot(y = results.marginal[["None justifys IPV"]]["97.5%",],
      x = interesting.points[["gdi"]],
-     xlab = "Neighbourhood justification of IPV",
-     ylab = "Marginal effect on IPV (lower bound)",
-     type = "l", col = "white", ylim = c(min(unlist(results.marginal)), 0.16),
+     xlab = "Gender Development Index",
+     ylab = "Marginal effect on IPV (upper bound)",
+     type = "l", col = "white",
+     ylim = c(min(results.marginal[["('couple_attitudes', 'Wife justifies IPV')"]]["97.5%",]),
+              max(results.marginal[["('couple_attitudes', 'Wife justifies IPV')"]]["97.5%",])),
      lwd = 1)
 grid()
 my.names <- c("None justifys IPV", attitudes)
 for(i in 1:length(my.names)){
-    lines(y = results.marginal[[my.names[i]]]["2.5%",],
+    lines(y = results.marginal[[my.names[i]]]["97.5%",],
           x = interesting.points[["gdi"]],
           col = my.cols[i], lwd = 3, lty = 1)
 }
@@ -1445,11 +1458,11 @@ abline(h = 0, lty = 2)
 
 ## Add some hints.
 for(i in 1:4){
-    segments(x0=marginal.effect.positive.at[i], y0=-0.0075, y1=0.0075, col = my.cols[i], lwd = 1)
+    segments(x0=marginal.effect.negative.at[i], y0=-0.0075, y1=0.0075, col = my.cols[i], lwd = 1)
     ## odd i:s above, even i:s below.
     my.y <- -0.0125 * (-1)^i
-    text(x=marginal.effect.positive.at[i], y = my.y,
-         labels=round(marginal.effect.positive.at[i], 2), col = my.cols[i], adj = 0.5, cex = 0.5)    
+    text(x=marginal.effect.negative.at[i], y = my.y,
+         labels=round(marginal.effect.negative.at[i], 2), col = my.cols[i], adj = 0.5, cex = 0.5)    
 }
 
 legend("right",
@@ -1465,13 +1478,19 @@ legend("right",
        xpd = TRUE
 )
 
-
-
 @
 
-<<spline-gdi-dual-plot, fig.cap = paste0("Left: Predicted probabilities for a woman to be exposed to IPV conditioned on the attitudes in the couple and the attitudes of the other women in the local area. Credible intervals corresponding to 95\\% of the parameter samples. Right: Lower bounds of the credible intervals (95\\%) of the marginal effect of the attitudes of the other women in the local area on the probability of IPV conditioned on the attitudes in the couple. For couples where no one justifies IPV, the effect of the attitudes of the neighbourhood becomes 'statistically significant' when the proportion of women in the neighbourhood who thinks IPV can be justified is above ", round(marginal.effect.positive.at[1], 2), ". The other types of couples are less susceptible to the attitudes of the women in the neighbourhood, but even in couples where both the husband and the wife thinks IPV can be justified, the attitudes of the neighbourhood have a measurable effect on IPV when the proportion of women in the neighbourhood who thinks IPV can be justified is above ", round(marginal.effect.positive.at[2], 2), ". n = ", nrow(ipv.mm), "."), fig.width = 5, fig.height = 3.3, dpi = 300>>=
+<<spline-gdi-dual-plot, fig.cap = paste0("Left: Predicted probabilities for a woman to be exposed to IPV conditioned on the Gender Development Index. Credible intervals corresponding to 95\\% of the parameter samples. Right: Upper bounds of the credible intervals of the marginal effect of the Gender Development Index on the probability of IPV in different types of couples. For all four types of couples the effect of the GDI becomes 'statistically significant' at about the same level of GDI, about 0.83. The 5 per cent most extreme low values of GDI, and the top 2.5 per cent values of GDI, excluded from the graph due to large uncertainties in those regions. n = ", nrow(ipv.mm), "."), fig.width = 5, fig.height = 3.3, dpi = 300>>=
 ## Layout: 2 rows, one for plots, one for legend
 layout(matrix(c(1, 1, 2, 3), nrow = 2, byrow = TRUE), heights = c(1, 4))
+
+## Plot untransformed values of GDI
+my.transform.back <- function(x, var.name, data.frame){
+    x * attr(data.frame[[var.name]], "scaled:scale") +
+        attr(data.frame[[var.name]], "scaled:center")
+}
+
+raw.x <- my.transform.back(interesting.points[["gdi"]], "gdi", my.dt.clean)
 
 ## Legend 
 par(mar = c(0, 0, 0, 0))
@@ -1490,8 +1509,8 @@ legend("center",
 ## Left plot
 par(mar = c(4, 4, 2, 1), cex.axis = 0.6, cex.lab = 0.7, cex.main = 0.7)
 plot(y = results[["None justifys IPV"]]["50%",],
-     x = interesting.points[["gdi"]],
-     xlab = "Neighbourhood justification of IPV",
+     x = raw.x,
+     xlab = "Gender Development Index",
      ylab = "Probability of IPV",
      main = "Predicted probabilities",     
      type = "l", col = "red", ylim = c(min(unlist(results)), max(unlist(results))),
@@ -1502,35 +1521,40 @@ my.alpha.cols <- sapply(my.cols, cooltools::transparent, alpha = 0.4)
 my.names <- c("None justifys IPV", attitudes)
 for(i in 1:length(my.names)){
     polygon(y = c(results[[my.names[i]]]["2.5%",], rev(results[[my.names[i]]]["97.5%",])),
-            x = c(interesting.points[["gdi"]], rev(interesting.points[["gdi"]])), col = my.alpha.cols[i], border = NA)
+            x = c(raw.x, rev(raw.x)), col = my.alpha.cols[i], border = NA)
     lines(y = results[[my.names[i]]]["50%",],
-          x = interesting.points[["gdi"]],
+          x = raw.x,
           col = my.cols[i], lwd = 1, lty = i)
 }
 
 ## Right plot
-plot(y = results.marginal[["None justifys IPV"]]["2.5%",],
-     x = interesting.points[["gdi"]],
-     xlab = "Neighbourhood justification of IPV",
-     ylab = "Marginal effect on IPV (lower bound)",
-     type = "l", col = "white", ylim = c(min(unlist(results.marginal)), 0.16),
-     main = "Marginal effect (lower bound)",
+plot(y = results.marginal[["None justifys IPV"]]["97.5%",],
+     x = raw.x,
+     xlab = "Gender Development Index",
+     ylab = "Marginal effect on IPV (upper bound)",
+     type = "l", col = "white",
+     ylim = c(min(results.marginal[["('couple_attitudes', 'Wife justifies IPV')"]]["97.5%",]),
+              max(results.marginal[["('couple_attitudes', 'Wife justifies IPV')"]]["97.5%",])),
+     main = "Marginal effect (upper bound)",
      lwd = 1)
 grid()
 my.names <- c("None justifys IPV", attitudes)
 for(i in 1:length(my.names)){
-    lines(y = results.marginal[[my.names[i]]]["2.5%",],
-          x = interesting.points[["gdi"]],
+    lines(y = results.marginal[[my.names[i]]]["97.5%",],
+          x = raw.x,
           col = my.cols[i], lwd = 2, lty = i)
 }
 abline(h = 0, lty = 2)
 ## Add some visual hints for interpretation.
-for(i in 1:4){
-    segments(x0=marginal.effect.positive.at[i], y0=-0.0075, y1=0.0075, col = my.cols[i], lwd = 1)
+for(i in 2:3){
+    segments(x0=my.transform.back(marginal.effect.negative.at[i], "gdi", my.dt.clean),
+             y0=-0.0075, y1=0.0075, col = my.cols[i], lwd = 1)
     ## odd i:s above, even i:s below the x-axis
-    my.y <- -0.0125 * (-1)^i
-    text(x=marginal.effect.positive.at[i], y = my.y,
-         labels=round(marginal.effect.positive.at[i], 2), col = my.cols[i], adj = 0.5, cex = 0.5)    
+    my.y <- -0.0125 * 3 * (-1)^i
+    text(x=my.transform.back(marginal.effect.negative.at[i], "gdi", my.dt.clean),
+         y = my.y,
+         labels=round(my.transform.back(marginal.effect.negative.at[i], "gdi", my.dt.clean), 2),
+         col = my.cols[i], adj = 0.5, cex = 0.5)    
 }
 
 @
