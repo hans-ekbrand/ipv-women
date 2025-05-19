@@ -580,9 +580,37 @@ my.dt.missing <- my.dt.temp[-these, list(viol01_wife, couple_attitudes, Educatio
 my.dt.clean <- my.dt.temp[these,                                
                           list(viol01_wife, couple_attitudes, Education, edudeviation, decide_purchases, decide_health, gdi, gni, viol01_cluster, justifyIPV_cluster, iwi2, country, cluster1, ln_numb_of_children, lnage_wife, literate_couple), ]
 
-## z-standardize some numeric variables
+## Old code
+## ## z-standardize some numeric variables
+## for(var in c("gni", "iwi2", "gdi")){
+##     my.dt.clean[[var]] <- scale(my.dt.clean[[var]])
+## }
+## New version, adapt to Björns convention: 0 means the minimum, 1 means the maxium of the observed values in the sample.
+## 1. Construct a new variable by substracting the minimum from all observed values.
+## 2. Divide all values on the new variable by the range (the difference between largest and smallest value in the sample). 0 is still zero, but the largest value will now become 1.
+
+my.scaler.f <- function(input, inverse = FALSE, min = NA, max = NA){
+    if(!inverse){
+        observed <- input
+        my.range <- range(observed, na.rm=TRUE)
+        globallivingconditions::my.log.f(paste(Sys.time(), "Scaling a variable with the following range: ",
+                                               paste(my.range, collapse = ", ")))
+        output <- (observed-my.range[1])/(my.range[2]-my.range[1])
+    } else {
+        ## Apply the inreverse conversion
+        ## re-arrange this equality
+        ## input == (output-my.range[1])/(my.range[2]-my.range[1])
+        ## input * (my.range[2]-my.range[1]) + my.range[1] == output
+        output <- input * (max - min) + min
+    }
+    return(output)
+}
+
 for(var in c("gni", "iwi2", "gdi")){
-    my.dt.clean[[var]] <- scale(my.dt.clean[[var]])
+    ## ## Old code
+    ## my.dt.clean[[var]] <- scale(my.dt.clean[[var]])
+    globallivingconditions::my.log.f(paste(Sys.time(), "Scaling", var))
+    my.dt.clean[[var]] <- my.scaler.f(my.dt.clean[[var]])
 }
 
 ## Make factors, so that the levels are clear
@@ -1558,6 +1586,8 @@ for(i in 2:3){
 }
 
 @
+
+
 
 \bibliographystyle{apacite}
 \bibliography{references}
