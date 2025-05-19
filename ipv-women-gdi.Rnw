@@ -373,6 +373,8 @@ my.dt[, wife.is.illiterate := NULL, ]
 ## wanted to use them, but we use "Total" anyway).
 
 ## Step 1, match RegionID from DHS with names of GADM region level 1
+## by re-writing the Region names in the data to match the names of the polygons
+## Afghanistan has the numeric code 4.
 Afghanistan.Region.ID.from.dhs <- globallivingconditions::recode(my.dt[country.code.ISO.3166.alpha.3 == 4, substring(RegionID, 4), ], recodes = "'Helmand' = 'Hilmand'; 'Herat' = 'Hirat'; 'Kunarha' = 'Kunar'; 'Nooristan' = 'Nuristan'; 'Panjsher' = 'Panjshir'; 'Sar-e-pul' = 'SariPul'; 'Urozgan' = 'Uruzgan'")
 
 ## Update the RegionID in my.dt for these cases.
@@ -455,7 +457,7 @@ sf_points <- sf::st_as_sf(unique.pts, coords = c("lon", "lat"), crs = 4326)
 ## [1]  105  544 1414 1667
 gdl.polygons <- sf::st_make_valid(sf::st_read(paste0(gdl.path, "GDL Shapefiles V6.4")))
 gdl.classification <- sf::st_intersects(sf_points, gdl.polygons)
-## Get the area names from the result of st_intersects
+## Get the area names from the result of st_intersects()
 indices <- sapply(gdl.classification, function(x) { x[1] })
 gdl.codes <- gdl.polygons$gdlcode[indices]
 unique.pts$GDLCODE <- gdi.clean$GDLCODE[match(gdl.codes, gdi.clean$GDLCODE)]
@@ -472,13 +474,18 @@ gdi.long[, year.of.interview := as.numeric(as.character(year.of.interview)), ]
 ## impute data for years not estimated by GDL.
 ## only used for Chad 2014-2015. Subnational figures not required.
 ## Simplify by using only the national figures when imputing.
+## Here 4 refers to the number of character in the GDL area code, which for the country totals
+## is the standard three letters of ISO 3166 + "t" (for "[t]otal").
 gdi.long.base.for.imputations <- gdi.long[which(nchar(as.character(gdi.long$GDLCODE)) == 4), ]
-## remove cases with missing expect Chad 2014 and later
-gdi.long.base.for.imputations <- gdi.long.base.for.imputations[is.na(GDI) == FALSE |
-                                                               (GDLCODE == "TCDt" & year.of.interview > 2013), ]
+## remove cases with missing data, expect for Chad 2014 and later. 
+gdi.long.base.for.imputations <- gdi.long.base.for.imputations[
+(is.na(GDI) == FALSE | (GDLCODE == "TCDt" & year.of.interview > 2013)), ]
+## Make GDLCODE a factor, or mice() will warn and make bad predictions
+gdi.long.base.for.imputations$GDLCODE <- factor(gdi.long.base.for.imputations$GDLCODE)
 imp.model.gdi <- mice::mice(gdi.long.base.for.imputations, method = "pmm", m = 1, printFlag = FALSE)
 gdi.long.complete <- mice::complete(imp.model.gdi)
 data.table::setDT(gdi.long.complete)
+
 ## Keep only Chad in the this set.
 gdi.long.chad <- gdi.long.complete[GDLCODE == "TCDt", ]
 ## remove Chad from the main set
@@ -486,9 +493,6 @@ gdi.long <- gdi.long[GDLCODE != "TCDt", ]
 gdi.long <- rbind(gdi.long, gdi.long.chad)
 
 ## Now that we know which GLDCODE for which coordinate, create a data set with ClusterID, coordinates, and year, and add the GDL data to that set.
-
-## ## Use the GDL code that corresponds to the "total" version for the country.
-## my.temp.set <- unique(my.dt[, list(ClusterID, year.of.interview, GDLCODE = paste0(globallivingconditions::iso.3166$String.code[match(country.code.ISO.3166.alpha.3, globallivingconditions::iso.3166$numeric)], "t")), ])
 
 ## For India (code == 356), use Sub-National estimates of GNI/GDI
 my.temp.set <- unique(my.dt[which(is.na(lon) == FALSE & 
@@ -507,6 +511,57 @@ my.no.lon.lat.set <- unique(my.dt[which(ClusterID %in% my.temp.set.2$ClusterID =
 
 ## Add the set of cases matched on lon, lat and the set of cases based on total for the country.
 my.temp.set.3a <- rbind(my.no.lon.lat.set, my.temp.set.2)
+
+## 14 Indian clusters become miss-classified, or not ascribed any
+## GDLCODE, either their GPS-coordinates are a bit off, or the
+## polygons in the GDL data is a bit off. Correct by using the
+## majority of the clusters in the same region.
+
+## Here are the faulty cases
+## my.temp.set.3a[which((substring(GDLCODE, 1, 3) != "IND" & substring(ClusterID, 1, 2) == "IA") | is.na(GDLCODE)),  ]
+## Key: <GDLCODE, year.of.interview>
+##                         ClusterID year.of.interview GDLCODE
+##                            <fctr>             <num>  <char>
+##  1:          IA.Gujarat.74.110854              2016    <NA>
+##  2:      IA.Lakshadweep.74.180116              2016    <NA>
+##  3:      IA.Lakshadweep.74.180012              2016    <NA>
+##  4:      IA.Lakshadweep.74.180011              2016    <NA>
+##  5:      IA.Lakshadweep.74.180064              2016    <NA>
+##  6:           IA.Kerala.74.170049              2016    <NA>
+##  7:       IA.Lakshadweep.7E.58720              2019    <NA>
+##  8:       IA.Lakshadweep.7E.58720              2020    <NA>
+##  9:          IA.Mizoram.74.230374              2016 BGDr205
+## 10:             IA.Assam.74.40759              2016 BTNr111
+## 11: IA.Himachal Pradesh.74.130210              2016 CHNr126
+## 12: IA.Himachal Pradesh.74.130086              2016 CHNr126
+## 13:           IA.Punjab.74.280397              2016 PAKr101
+## 14:           IA.Punjab.74.280252              2016 PAKr101
+
+## a function to extract the common part from a clusterID
+my.strip.clusterID.f <- function(x) {
+    tmp <- strsplit(x, ".", fixed = TRUE)[[1]]
+    paste(tmp[1], tmp[2], sep = ".")
+}
+
+## Either wrong country (not IND), or NA om GDLCODE or "INDt" on GDLCODE.
+## "INDt" on GDLCODE indicates missing or bad GPS coordinate
+these.indices <- which((substring(my.temp.set.3a$GDLCODE, 1, 3) != "IND" & substring(my.temp.set.3a$ClusterID, 1, 2) == "IA") | is.na(my.temp.set.3a$GDLCODE) | my.temp.set.3a$GDLCODE == "INDt")
+these.clusterIDs <- sapply(my.temp.set.3a[these.indices, as.character(ClusterID)], my.strip.clusterID.f)
+
+## Find the majority GDLCODE for them
+all.reduced <- sapply(my.temp.set.3a[, as.character(ClusterID), ], my.strip.clusterID.f)
+majority.names <- sapply(unique(these.clusterIDs), function(x) {
+    these <- which(all.reduced == x)
+    these.names <- names(my.temp.set.3a[these, tail(sort(table(GDLCODE))), ])
+    if(length(these.names) > 1){
+        result <- these.names[length(these.names)]
+    } else {
+        result <- these.names
+    }
+})
+
+## apply the majority names found on the 14 mis-classfied clusters
+my.temp.set.3a[these.indices, GDLCODE :=  majority.names[match(these.clusterIDs, names(majority.names))], ]
 
 setkey(my.temp.set.3a, GDLCODE, year.of.interview)
 setkey(gdi.long, GDLCODE, year.of.interview)
@@ -868,7 +923,7 @@ In the final model, «B\_df« will replace «justifyIPV\_cluster«, and while it
 df = pd.concat([df, B_df], axis=1)
 @
 
-With that in place we can inspect how a given value of «justifyIPV\_cluster« translates to values on the new columns (named ``spline, 0''  to ``spline, 2''), see table \vref{tab:splines}. To produce this slice, only the rows in «df« with unique values on «justifyIPV\_cluster« was kept.
+With that in place we can inspect how a given value of «GDI« translates to values on the new columns (named ``spline, 0''  to ``spline, 2''), see table \vref{tab:splines}. To produce this slice, only the rows in «df« with unique values on «GDI« was kept.
 
 <<splines-gdi-create-new-slice, engine='python', cache = TRUE, echo = TRUE>>=
 unique_rows = df.drop_duplicates(subset='gdi').head(6)
