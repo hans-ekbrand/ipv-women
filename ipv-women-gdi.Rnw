@@ -1568,12 +1568,17 @@ legend("right",
 layout(matrix(c(1, 1, 2, 3), nrow = 2, byrow = TRUE), heights = c(1, 4))
 
 ## Plot untransformed values of GDI
-my.transform.back <- function(x, var.name, data.frame){
-    x * attr(data.frame[[var.name]], "scaled:scale") +
-        attr(data.frame[[var.name]], "scaled:center")
-}
 
-raw.x <- my.transform.back(interesting.points[["gdi"]], "gdi", my.dt.clean)
+## Old Code
+## my.transform.back <- function(x, var.name, data.frame){
+##     x * attr(data.frame[[var.name]], "scaled:scale") +
+##         attr(data.frame[[var.name]], "scaled:center")
+## }
+## raw.x <- my.transform.back(interesting.points[["gdi"]], "gdi", my.dt.clean)
+
+## New Code (scaling to 0,1 and back instead of z-transformations)
+## Original range explictly given.
+raw.x <- my.scaler.f(interesting.points[["gdi"]], inverse = TRUE, min = 0.682, max = 1.1014)
 
 ## Legend 
 par(mar = c(0, 0, 0, 0))
