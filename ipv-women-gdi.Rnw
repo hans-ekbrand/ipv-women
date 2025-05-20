@@ -1634,14 +1634,15 @@ for(i in 1:length(my.names)){
 }
 abline(h = 0, lty = 2)
 ## Add some visual hints for interpretation.
+marginal.effect.negative.at <- my.scaler.f(marginal.effect.negative.at, inverse = TRUE, min = 0.682, max = 1.1014)
 for(i in 2:3){
-    segments(x0=my.transform.back(marginal.effect.negative.at[i], "gdi", my.dt.clean),
+    segments(x0=marginal.effect.negative.at[i],
              y0=-0.0075, y1=0.0075, col = my.cols[i], lwd = 1)
     ## odd i:s above, even i:s below the x-axis
     my.y <- -0.0125 * 3 * (-1)^i
-    text(x=my.transform.back(marginal.effect.negative.at[i], "gdi", my.dt.clean),
+    text(x = marginal.effect.negative.at[i],
          y = my.y,
-         labels=round(my.transform.back(marginal.effect.negative.at[i], "gdi", my.dt.clean), 2),
+         labels=round(marginal.effect.negative.at[i], 2),
          col = my.cols[i], adj = 0.5, cex = 0.5)    
 }
 
