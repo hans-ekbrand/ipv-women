@@ -1239,7 +1239,7 @@ Inspect the r-hat statistics, and the High Density Intervals for the fixed effec
 <<splines-gdi-evaluate-model-2, engine = "python", results = "markup", cache = TRUE>>=
 import arviz, pickle
 my_fit_pymc = pickle.load(open('ipv-women-gdi.pydata', 'rb'))
-summary_df = arviz.summary(my_fit_pymc, var_names=["~country", "~cluster"], filter_vars="like")[["hdi_3%", "hdi_97%","r_hat"]]
+summary_df = arviz.summary(my_fit_pymc, var_names=["~1|country", "~1|cluster"], filter_vars="like")[["hdi_3%", "hdi_97%","r_hat"]]
 summary_df.to_csv("spline-gdi-evaluate-model-2-summary.csv", index=True)
 @
 
@@ -1313,7 +1313,7 @@ params.matrix <- as.matrix(params)
 mean.matrix <- as.matrix(my.means)
 @
 
-Build the grid of values at which to generate predicted probabilities for each level of the factor variable that captures the attitudes of the couple. Even if splines have replaced the variable «justifyIPV\_cluster«, proceed as normal by finding relevant values on «justifyIPV\_cluster«, e.g. all non-extreme half-deciles, and for each interesting value on «justifyIPV\_cluster« find the corresponding set of values by extracting the values for the splines for cases that have the decile value on «justifyIPV\_cluster«. This is why «justifyIPV\_cluster« was retained in the model matrix even if it was not used when the model was fit to data.
+Build the grid of values at which to generate predicted probabilities for each level of the factor variable that captures the attitudes of the couple. Even if splines have replaced the variable «gdi«, proceed as normal by finding relevant values on «gdi«, e.g. all non-extreme half-deciles, and for each interesting value on «gdi« find the corresponding set of values by extracting the values for the splines for cases that have the decile value on «gdi«. This is why «gdi« was retained in the model matrix even if it was not used when the model was fit to data.
 
 <<splines-gdi-find-interesting.points>>=
 quantiles <- quantile(ipv.mm$gdi, probs = seq(from = 0.0,  to = 1.0, by = 0.01))
@@ -1436,7 +1436,7 @@ plot(y = results[["None justifys IPV"]]["50%",],
 grid()
 ## my.cols <- c("red", "darkgreen", "blue", "orange")
 my.cols <- c("darkgreen", "red", "orange", "blue")
-my.alpha.cols <- sapply(my.cols, cooltools::transparent, alpha = 0.6)
+my.alpha.cols <- sapply(my.cols, cooltools::transparent, alpha = 0.4)
 my.names <- c("None justifys IPV", attitudes)
 for(i in 1:length(my.names)){
     polygon(y = c(results[[my.names[i]]]["2.5%",], rev(results[[my.names[i]]]["97.5%",])),
