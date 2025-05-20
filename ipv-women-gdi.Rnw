@@ -1316,7 +1316,7 @@ mean.matrix <- as.matrix(my.means)
 Build the grid of values at which to generate predicted probabilities for each level of the factor variable that captures the attitudes of the couple. Even if splines have replaced the variable «justifyIPV\_cluster«, proceed as normal by finding relevant values on «justifyIPV\_cluster«, e.g. all non-extreme half-deciles, and for each interesting value on «justifyIPV\_cluster« find the corresponding set of values by extracting the values for the splines for cases that have the decile value on «justifyIPV\_cluster«. This is why «justifyIPV\_cluster« was retained in the model matrix even if it was not used when the model was fit to data.
 
 <<splines-gdi-find-interesting.points>>=
-quantiles <- quantile(ipv.mm$gdi, probs = seq(from = 0.05,  to = 0.975, by = 0.01))
+quantiles <- quantile(ipv.mm$gdi, probs = seq(from = 0.0,  to = 1.0, by = 0.01))
 
 ## Find the observed value closest to the quantile
 these <- sapply(quantiles, function(x) { which.min(abs(ipv.mm$gdi - x)) })
